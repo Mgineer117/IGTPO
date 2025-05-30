@@ -100,7 +100,7 @@ def call_env(args):
         args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
 
     elif env_name == "pointmaze":
-        episode_len = 200
+        episode_len = 300
         gym.register_envs(gymnasium_robotics)
         example_map = [
             [1, 1, 1, 1, 1, 1, 1, 1],
