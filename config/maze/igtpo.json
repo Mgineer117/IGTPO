@@ -1,0 +1,19 @@
+{
+    "extractor_epochs": 10000,
+    "timesteps": 3e7,
+    "meta_actor_lr": 3e-3,
+    "actor_lr": 3e-4,
+    "critic_lr": 5e-4,
+    "extractor_type": "CNN",
+    "feature_dim": 64,
+    "eps_clip": 0.2,
+    "K_epochs": 5,
+    "num_local_updates": 15,
+    "target_kl": 0.01,
+    "num_options": 10,
+    "entropy_scaler": 0.0,
+    "num_minibatch": 8,
+    "minibatch_size": 256,
+    "batch_size": 512,
+    "gamma": 0.99
+}

@@ -1,0 +1,6 @@
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 2 --project igtpo --entropy-scaler 0.0 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 2 --project igtpo --entropy-scaler 1e-2 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 2 --project igtpo  --entropy-scaler 1e-4 &
+nohup python3 main.py --algo-name igtpo --env-name ninerooms-v0 --gpu-idx 3 --project igtpo  --entropy-scaler 0.0 &
+nohup python3 main.py --algo-name igtpo --env-name ninerooms-v0 --gpu-idx 3 --project igtpo  --entropy-scaler 1e-2 &
+nohup python3 main.py --algo-name igtpo --env-name ninerooms-v0 --gpu-idx 3 --project igtpo  --entropy-scaler 1e-4 &

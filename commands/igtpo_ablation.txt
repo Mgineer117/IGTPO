@@ -1,0 +1,9 @@
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 --project igtpo --num-local-updates 5 &
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 --project igtpo --num-local-updates 10 &
+
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 1 --project igtpo --entropy-scaler 0.01 &
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 1 --project igtpo --entropy-scaler 0.0001 &
+
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo --target-kl 0.01 &
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo --target-kl 0.03 &
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo --meta-actor-lr 0.001 &

@@ -1,0 +1,14 @@
+gymnasium==1.1.1
+mujoco==3.0.0
+imageio
+matplotlib
+moviepy
+numpy
+pandas
+sympy
+tensorboard
+torch
+tqdm
+wandb
+scipy
+pyrender
