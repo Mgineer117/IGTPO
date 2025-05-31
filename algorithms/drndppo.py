@@ -56,10 +56,13 @@ class DRND_PPO_Algorithm(nn.Module):
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
+        feature_dim = (
+            self.args.feature_dim if self.args.feature_dim else self.args.state_dim
+        )
         drnd_model = DRNDModel(
             input_dim=self.args.state_dim,
-            output_dim=self.args.state_dim,
-            num=5,
+            output_dim=feature_dim,
+            num=10,
             device=self.args.device,
         )
         drnd_critic = PPO_Critic(
@@ -73,7 +76,7 @@ class DRND_PPO_Algorithm(nn.Module):
             drnd_critic=drnd_critic,
             actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,
-            drnd_lr=1e-4,
+            drnd_lr=3e-4,
             num_minibatch=self.args.num_minibatch,
             minibatch_size=self.args.minibatch_size,
             eps_clip=self.args.eps_clip,

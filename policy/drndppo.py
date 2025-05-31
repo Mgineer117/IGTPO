@@ -34,7 +34,7 @@ class DRNDPPO_Learner(Base):
         int_reward_scaler: float = 1.0,
         drnd_loss_scaler: float = 1.0,
         update_proportion: float = 0.25,
-        alpha: float = 0.95,
+        alpha: float = 0.9,
         device: str = "cpu",
     ):
         super(DRNDPPO_Learner, self).__init__()

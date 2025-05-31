@@ -23,12 +23,22 @@ class DRNDModel(Base):
         self.device = device
 
         self.predictor = MLP(
-            self.input_dim, [256, 256], self.output_dim, activation=nn.ReLU()
+            self.input_dim,
+            [512, 512, 512],
+            self.output_dim,
+            activation=nn.ReLU(),
+            initialization="critic",
         )
 
         self.target = nn.ModuleList(
             [
-                MLP(self.input_dim, [256], self.output_dim, activation=nn.ReLU())
+                MLP(
+                    self.input_dim,
+                    [128, 128],
+                    self.output_dim,
+                    activation=nn.Tanh(),
+                    initialization="critic",
+                )
                 for _ in range(num)
             ]
         )

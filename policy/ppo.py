@@ -6,11 +6,7 @@ import torch.nn as nn
 
 from policy.base import Base
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
-
-# from utils.torch import get_flat_grad_from, get_flat_params_from, set_flat_params_to
 from utils.rl import estimate_advantages
-
-# from models.layers.ppo_networks import PPO_Policy, PPO_Critic
 
 
 class PPO_Learner(Base):
