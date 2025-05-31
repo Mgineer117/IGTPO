@@ -171,7 +171,7 @@ class IGTPO_Algorithm(nn.Module):
 
         self.policy = IGTPO_Learner(
             actor=self.actor,
-            actor_lr=self.args.meta_actor_lr,
+            igtpo_actor_lr=self.args.igtpo_actor_lr,
             batch_size=self.args.batch_size,
             eps_clip=self.args.eps_clip,
             entropy_scaler=self.args.entropy_scaler,

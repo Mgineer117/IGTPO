@@ -23,7 +23,7 @@ class IGTPO_Learner(Base):
     def __init__(
         self,
         actor: PPO_Actor,
-        actor_lr: float = 3e-4,
+        igtpo_actor_lr: float = 3e-4,
         batch_size: int = 256,
         eps_clip: float = 0.2,
         entropy_scaler: float = 1e-3,
@@ -54,7 +54,7 @@ class IGTPO_Learner(Base):
 
         # trainable networks
         self.actor = actor
-        self.actor_lr = actor_lr
+        self.igtpo_actor_lr = igtpo_actor_lr
 
         # self.divider = len(list(self.actor.parameters()))
 
@@ -115,7 +115,7 @@ class IGTPO_Learner(Base):
         actor_clone = deepcopy(self.actor)
         with torch.no_grad():
             for p, g in zip(actor_clone.parameters(), gradients):
-                p -= self.actor_lr * g
+                p -= self.igtpo_actor_lr * g
 
         # 7. create a new policy
         new_policy = deepcopy(self)

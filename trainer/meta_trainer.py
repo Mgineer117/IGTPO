@@ -93,8 +93,6 @@ class MetaTrainer:
         eval_idx = 0
         prune_idx = 0
 
-        actor_lr = self.policy.actor_lr
-
         with tqdm(
             total=self.timesteps + self.init_timesteps,
             initial=self.init_timesteps,
@@ -231,7 +229,8 @@ class MetaTrainer:
                             grad_outputs=gradients,
                         )
                         gradients = tuple(
-                            g - actor_lr * h for g, h in zip(gradients, Hv)
+                            g - self.policy.igtpo_actor_lr * h
+                            for g, h in zip(gradients, Hv)
                         )
                     meta_gradients.append(gradients)
 

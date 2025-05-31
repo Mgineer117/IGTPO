@@ -69,7 +69,7 @@ def get_args():
         "--extractor-lr", type=float, default=1e-4, help="Base learning rate."
     )
     parser.add_argument(
-        "--meta-actor-lr", type=float, default=None, help="Base learning rate."
+        "--igtpo-actor-lr", type=float, default=None, help="Base learning rate."
     )
     parser.add_argument(
         "--actor-lr", type=float, default=None, help="Base learning rate."
@@ -128,7 +128,7 @@ def get_args():
         help="Lower bound of the eigenvalue of the dual metric.",
     )
     parser.add_argument(
-        "--entropy-scaler", type=float, default=None, help="Base learning rate."
+        "--entropy-scaler", type=float, default=1e-2, help="Base learning rate."
     )
     parser.add_argument("--gamma", type=float, default=None, help="Base learning rate.")
     parser.add_argument(
