@@ -7,11 +7,8 @@ import torch.nn.functional as F
 
 from policy.base import Base
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
-
-# from utils.torch import get_flat_grad_from, get_flat_params_from, set_flat_params_to
 from utils.rl import estimate_advantages
-
-# from models.layers.ppo_networks import PPO_Policy, PPO_Critic
+from utils.wrapper import RunningMeanStd
 
 
 class DRNDPPO_Learner(Base):
@@ -70,6 +67,8 @@ class DRNDPPO_Learner(Base):
         self.drnd = drnd_model
         self.drnd_critic = drnd_critic
 
+        self.int_reward_rms = RunningMeanStd(shape=(1,))
+
         self.optimizer = torch.optim.Adam(
             [
                 {"params": self.actor.parameters(), "lr": actor_lr},
@@ -94,24 +93,36 @@ class DRNDPPO_Learner(Base):
         }
 
     def intrinsic_reward(self, next_states: torch.Tensor):
-        predict_next_feature, target_next_feature = self.drnd(next_states)
+        with torch.no_grad():
+            predict_next_feature, target_next_feature = self.drnd(next_states)
 
-        mu = torch.mean(target_next_feature, axis=0)
-        B2 = torch.mean(target_next_feature**2, axis=0)
+            mu = torch.mean(target_next_feature, axis=0)
+            B2 = torch.mean(target_next_feature**2, axis=0)
 
-        b1 = self.alpha * torch.sum(
-            (predict_next_feature - mu) ** 2, dim=1, keepdim=True
-        )
-        b2 = (1 - self.alpha) * torch.sum(
-            torch.sqrt(
-                torch.clip(
-                    torch.abs(predict_next_feature**2 - mu**2) / (B2 - mu**2), 1e-6, 1
-                )
-            ),
-            dim=-1,
-            keepdim=True,
-        )
-        intrinsic_rewards = b1 + b2
+            b1 = self.alpha * torch.sum(
+                (predict_next_feature - mu) ** 2, dim=1, keepdim=True
+            )
+            b2 = (1 - self.alpha) * torch.sum(
+                torch.sqrt(
+                    torch.clip(
+                        torch.abs(predict_next_feature**2 - mu**2) / (B2 - mu**2),
+                        1e-6,
+                        1,
+                    )
+                ),
+                dim=-1,
+                keepdim=True,
+            )
+            intrinsic_rewards = b1 + b2
+
+            # normalize intrinsic rewards
+            intrinsic_rewards = intrinsic_rewards.cpu().numpy()
+            self.int_reward_rms.update(intrinsic_rewards)
+
+            intrinsic_rewards = (intrinsic_rewards - self.int_reward_rms.mean) / (
+                np.sqrt(self.int_reward_rms.var) + 1e-8
+            )
+            intrinsic_rewards = self.preprocess_state(intrinsic_rewards)
 
         return intrinsic_rewards
 
@@ -146,7 +157,7 @@ class DRNDPPO_Learner(Base):
             int_values = self.drnd_critic(states)
             int_advantages, int_returns = estimate_advantages(
                 int_rewards,
-                terminals,
+                torch.zeros_like(terminals),  # No terminal for intrinsic rewards
                 int_values,
                 gamma=self.gamma,
                 gae=self.gae,
@@ -248,6 +259,7 @@ class DRNDPPO_Learner(Base):
             f"{self.name}/analytics/klDivergence": target_kl[-1],
             f"{self.name}/analytics/K-epoch": k + 1,
             f"{self.name}/analytics/avg_rewards": torch.mean(ext_rewards).item(),
+            f"{self.name}/analytics/int_rewards": torch.mean(int_rewards).item(),
         }
         grad_dict = self.average_dict_values(grad_dicts)
         norm_dict = self.compute_weight_norm(
