@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os
 import random
 import uuid
@@ -14,6 +15,9 @@ from utils.functions import (
     setup_logger,
 )
 from utils.get_args import get_args, override_args
+
+# it suppresses the wandb printing when it logs data
+os.environ["WANDB_SILENT"] = "true"
 
 
 def run(args, seed, unique_id, exp_time):
