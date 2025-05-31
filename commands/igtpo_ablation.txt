@@ -10,6 +10,6 @@ nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 
 nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 1 --project igtpo-ablation --target-kl 0.02 &
 nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --target-kl 0.03 &
 
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --meta-actor-lr 0.001 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --meta-actor-lr 0.05 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --meta-actor-lr 0.1 &
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --igtpo-actor-lr 0.001 &
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --igtpo-actor-lr 0.05 &
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --igtpo-actor-lr 0.1 &
