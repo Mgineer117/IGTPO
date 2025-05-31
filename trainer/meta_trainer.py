@@ -74,12 +74,12 @@ class MetaTrainer:
         self.timesteps = timesteps
 
         self.log_interval = log_interval
+        self.prune_interval = int(self.timesteps / self.num_vectors)
         self.eval_interval = int(self.timesteps / self.log_interval)
 
         # initialize the essential training components
         self.last_min_return_mean = 1e10
         self.last_min_return_std = 1e10
-        self.marker = marker
 
         self.seed = seed
 
@@ -91,6 +91,8 @@ class MetaTrainer:
 
         # Train loop
         eval_idx = 0
+        prune_idx = 0
+
         actor_lr = self.policy.actor_lr
 
         with tqdm(
@@ -253,25 +255,26 @@ class MetaTrainer:
                 )
 
                 # === PRUNE TWIG === #
-                if self.num_vectors > 1 and current_step > int(
-                    self.timesteps / self.marker
-                ):
-                    least_contributing_index = np.argmin(values)
-                    self.eigenvectors = np.concatenate(
-                        [
-                            self.eigenvectors[:least_contributing_index],
-                            self.eigenvectors[least_contributing_index + 1 :],
-                        ],
-                        axis=0,
-                    )
+                if self.num_vectors > 1:
+                    if current_step > self.prune_interval * (prune_idx + 1):
+                        prune_idx += 1
 
-                    # Prune the corresponding optimizer
-                    del self.subtask_critics.critics[least_contributing_index]
-                    del self.subtask_critics.optimizers[least_contributing_index]
-                    del self.num_vector_names[least_contributing_index]
+                        least_contributing_index = np.argmin(values)
+                        self.eigenvectors = np.concatenate(
+                            [
+                                self.eigenvectors[:least_contributing_index],
+                                self.eigenvectors[least_contributing_index + 1 :],
+                            ],
+                            axis=0,
+                        )
 
-                    # Update the number of vectors
-                    self.num_vectors = self.eigenvectors.shape[0]
+                        # Prune the corresponding optimizer
+                        del self.subtask_critics.critics[least_contributing_index]
+                        del self.subtask_critics.optimizers[least_contributing_index]
+                        del self.num_vector_names[least_contributing_index]
+
+                        # Update the number of vectors
+                        self.num_vectors = self.eigenvectors.shape[0]
 
                 # === Update progress ===
                 pbar.update(total_timesteps)
@@ -310,7 +313,7 @@ class MetaTrainer:
 
                 self.write_log(loss_dict, step=current_step)
 
-                #### EVALUATIONS ####
+                # === EVALUATIONS === #
                 if current_step >= self.eval_interval * eval_idx:
                     ### Eval Loop
                     self.policy.eval()
