@@ -27,7 +27,7 @@ class IGTPO_Learner(Base):
         batch_size: int = 256,
         eps_clip: float = 0.2,
         entropy_scaler: float = 1e-3,
-        l2_reg: float = 1e-5,
+        l2_reg: float = 1e-8,
         target_kl: float = 0.03,
         gamma: float = 0.99,
         gae: float = 0.9,

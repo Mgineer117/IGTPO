@@ -5,8 +5,8 @@ import uuid
 
 import torch
 import torch.nn as nn
-import wandb
 
+import wandb
 from utils.functions import (
     call_env,
     concat_csv_columnwise_and_delete,
@@ -33,6 +33,10 @@ def run(args, seed, unique_id, exp_time):
         from algorithms.igtpo import IGTPO_Algorithm
 
         algo = IGTPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
+    elif args.algo_name == "drndppo":
+        from algorithms.drndppo import DRND_PPO_Algorithm
+
+        algo = DRND_PPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
     elif args.algo_name == "eigenoption":
         from algorithms.eigenoption import EigenOption
 

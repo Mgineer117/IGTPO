@@ -1,0 +1,53 @@
+import numpy as np
+import torch
+import torch.nn as nn
+
+from policy.base import Base
+from policy.layers.building_blocks import MLP
+
+
+class DRNDModel(Base):
+    """
+    DRND Model for predicting the next state and target features.
+    Adapted from: https://github.com/yk7333/DRND/blob/main/online/model.py
+    """
+
+    def __init__(
+        self, input_dim: int, output_dim: int, num: int, device=torch.device("cpu")
+    ):
+        super(DRNDModel, self).__init__()
+
+        self.input_dim = np.prod(input_dim)
+        self.output_dim = np.prod(output_dim)
+        self.num_target = num
+        self.device = device
+
+        self.predictor = MLP(
+            self.input_dim, [256, 256], self.output_dim, activation=nn.ReLU()
+        )
+
+        self.target = nn.ModuleList(
+            [
+                MLP(self.input_dim, [256], self.output_dim, activation=nn.ReLU())
+                for _ in range(num)
+            ]
+        )
+
+        # detach the gradients of target networks
+        for t_net in self.target:
+            for param in t_net.parameters():
+                param.requires_grad = False
+
+        self.to(device)
+
+    def forward(self, next_obs: torch.Tensor):
+        # Predict the next state features and target features
+        predict_feature = self.predictor(next_obs)
+
+        # Collect target features from each target network
+        target_features = []
+        for t_net in self.target:
+            target_features.append(t_net(next_obs))
+        target_feature = torch.stack(target_features, dim=0)
+
+        return predict_feature, target_feature
