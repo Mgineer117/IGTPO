@@ -119,7 +119,7 @@ class DRNDPPO_Learner(Base):
             intrinsic_rewards = intrinsic_rewards.cpu().numpy()
             self.int_reward_rms.update(intrinsic_rewards)
 
-            intrinsic_rewards = (intrinsic_rewards - self.int_reward_rms.mean) / (
+            intrinsic_rewards = intrinsic_rewards / (
                 np.sqrt(self.int_reward_rms.var) + 1e-8
             )
             intrinsic_rewards = self.preprocess_state(intrinsic_rewards)
