@@ -253,28 +253,6 @@ class MetaTrainer:
                     max_kl=self.policy.target_kl,  # or your own trust region size
                 )
 
-                # === PRUNE TWIG === #
-                if self.num_vectors > 1:
-                    if current_step > self.prune_interval * (prune_idx + 1):
-                        prune_idx += 1
-
-                        least_contributing_index = np.argmin(values)
-                        self.eigenvectors = np.concatenate(
-                            [
-                                self.eigenvectors[:least_contributing_index],
-                                self.eigenvectors[least_contributing_index + 1 :],
-                            ],
-                            axis=0,
-                        )
-
-                        # Prune the corresponding optimizer
-                        del self.subtask_critics.critics[least_contributing_index]
-                        del self.subtask_critics.optimizers[least_contributing_index]
-                        del self.num_vector_names[least_contributing_index]
-
-                        # Update the number of vectors
-                        self.num_vectors = self.eigenvectors.shape[0]
-
                 # === Update progress ===
                 pbar.update(total_timesteps)
 
@@ -311,6 +289,28 @@ class MetaTrainer:
                 )
 
                 self.write_log(loss_dict, step=current_step)
+
+                # === PRUNE TWIG === #
+                if self.num_vectors > 1:
+                    if current_step > self.prune_interval * (prune_idx + 1):
+                        prune_idx += 1
+
+                        least_contributing_index = np.argmin(values)
+                        self.eigenvectors = np.concatenate(
+                            [
+                                self.eigenvectors[:least_contributing_index],
+                                self.eigenvectors[least_contributing_index + 1 :],
+                            ],
+                            axis=0,
+                        )
+
+                        # Prune the corresponding optimizer
+                        del self.subtask_critics.critics[least_contributing_index]
+                        del self.subtask_critics.optimizers[least_contributing_index]
+                        del self.num_vector_names[least_contributing_index]
+
+                        # Update the number of vectors
+                        self.num_vectors = self.eigenvectors.shape[0]
 
                 # === EVALUATIONS === #
                 if current_step >= self.eval_interval * eval_idx:
