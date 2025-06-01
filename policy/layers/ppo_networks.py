@@ -64,7 +64,8 @@ class PPO_Actor(nn.Module):
 
         ### Shape the output as desired
         mu = logits
-        std = torch.exp(self.logstd.expand_as(mu))
+        logstd = torch.clip(self.logstd, -5, 2)  # Clip logstd to avoid numerical issues
+        std = torch.exp(logstd.expand_as(mu))
         dist = Normal(loc=mu, scale=std)
 
         a = dist.rsample()

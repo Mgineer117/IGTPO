@@ -252,6 +252,7 @@ class MetaTrainer:
                     states=meta_batch["states"],
                     max_kl=self.policy.target_kl,  # or your own trust region size
                 )
+                self.policy.lr_scheduler()
 
                 # === Update progress ===
                 pbar.update(total_timesteps)
@@ -286,6 +287,9 @@ class MetaTrainer:
                 )
                 loss_dict[f"{self.policy.name}/analytics/Backtrack_success"] = (
                     backtrack_success
+                )
+                loss_dict[f"{self.policy.name}/analytics/target_kl"] = (
+                    self.policy.target_kl
                 )
 
                 self.write_log(loss_dict, step=current_step)

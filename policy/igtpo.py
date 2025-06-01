@@ -23,6 +23,7 @@ class IGTPO_Learner(Base):
     def __init__(
         self,
         actor: PPO_Actor,
+        nupdates: int,
         igtpo_actor_lr: float = 3e-4,
         batch_size: int = 256,
         eps_clip: float = 0.2,
@@ -43,12 +44,14 @@ class IGTPO_Learner(Base):
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
 
+        self.nupdates = nupdates
         self.batch_size = batch_size
         self.entropy_scaler = entropy_scaler
         self.gamma = gamma
         self.gae = gae
         self.K = K
         self.l2_reg = l2_reg
+        self.init_target_kl = target_kl
         self.target_kl = target_kl
         self.eps_clip = eps_clip
 
@@ -56,10 +59,13 @@ class IGTPO_Learner(Base):
         self.actor = actor
         self.igtpo_actor_lr = igtpo_actor_lr
 
-        # self.divider = len(list(self.actor.parameters()))
-
         #
+        self.steps = 0
         self.to(self.dtype).to(self.device)
+
+    def lr_scheduler(self):
+        self.target_kl = self.init_target_kl * (1 - self.steps / self.nupdates)
+        self.steps += 1
 
     def forward(self, state: np.ndarray, deterministic: bool = False):
         state = self.preprocess_state(state)

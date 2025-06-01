@@ -18,6 +18,10 @@ class DRND_PPO_Algorithm(nn.Module):
         self.writer = writer
         self.args = args
 
+        self.args.nupdates = args.timesteps // (
+            args.minibatch_size * args.num_minibatch
+        )
+
     def begin_training(self):
         # === Define policy === #
         self.define_policy()
@@ -74,6 +78,7 @@ class DRND_PPO_Algorithm(nn.Module):
             critic=critic,
             drnd_model=drnd_model,
             drnd_critic=drnd_critic,
+            nupdates=self.args.nupdates,
             actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,
             drnd_lr=3e-4,

@@ -23,6 +23,10 @@ class EigenOption(nn.Module):
         self.writer = writer
         self.args = args
 
+        self.args.nupdates = args.timesteps // (
+            args.minibatch_size * args.num_minibatch
+        )
+
         self.current_timesteps = 0
 
     def begin_training(self):
@@ -117,6 +121,7 @@ class EigenOption(nn.Module):
         policy = PPO_Learner(
             actor=actor,
             critic=critic,
+            nupdates=self.args.nupdates,
             actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,
             num_minibatch=self.args.num_minibatch,

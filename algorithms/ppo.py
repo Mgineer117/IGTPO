@@ -17,6 +17,10 @@ class PPO_Algorithm(nn.Module):
         self.writer = writer
         self.args = args
 
+        self.args.nupdates = args.timesteps // (
+            args.minibatch_size * args.num_minibatch
+        )
+
     def begin_training(self):
         # === Define policy === #
         self.define_policy()
@@ -55,6 +59,7 @@ class PPO_Algorithm(nn.Module):
         self.policy = PPO_Learner(
             actor=actor,
             critic=critic,
+            nupdates=self.args.nupdates,
             actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,
             num_minibatch=self.args.num_minibatch,

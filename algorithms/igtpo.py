@@ -25,6 +25,13 @@ class IGTPO_Algorithm(nn.Module):
         self.writer = writer
         self.args = args
 
+        self.args.nupdates = args.timesteps // (
+            args.minibatch_size
+            * args.num_minibatch
+            * args.num_local_updates
+            * args.num_options
+        )
+
         self.current_timesteps = 0
 
     def begin_training(self):
@@ -171,6 +178,7 @@ class IGTPO_Algorithm(nn.Module):
 
         self.policy = IGTPO_Learner(
             actor=self.actor,
+            nupdates=self.args.nupdates,
             igtpo_actor_lr=self.args.igtpo_actor_lr,
             batch_size=self.args.batch_size,
             eps_clip=self.args.eps_clip,

@@ -18,6 +18,7 @@ class DRNDPPO_Learner(Base):
         critic: PPO_Critic,
         drnd_model: nn.Module,
         drnd_critic: PPO_Critic,
+        nupdates: int,
         actor_lr: float = 3e-4,
         critic_lr: float = 5e-4,
         drnd_lr: float = 3e-4,
@@ -46,6 +47,7 @@ class DRNDPPO_Learner(Base):
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
 
+        self.nupdates = nupdates
         self.num_minibatch = num_minibatch
         self.minibatch_size = minibatch_size
         self.entropy_scaler = entropy_scaler
@@ -77,9 +79,15 @@ class DRNDPPO_Learner(Base):
                 {"params": self.drnd_critic.parameters(), "lr": critic_lr},
             ]
         )
+        self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+            self.optimizer, lr_lambda=self.lr_lambda
+        )
 
         #
         self.to(self.dtype).to(self.device)
+
+    def lr_lambda(self, step):
+        return 1.0 - float(step) / float(self.nupdates)
 
     def forward(self, state: np.ndarray, deterministic: bool = False):
         state = self.preprocess_state(state)
@@ -247,6 +255,8 @@ class DRNDPPO_Learner(Base):
             if kl_div.item() > self.target_kl:
                 break
 
+        self.lr_scheduler.step()
+
         # Logging
         loss_dict = {
             f"{self.name}/loss/loss": np.mean(losses),
@@ -260,6 +270,12 @@ class DRNDPPO_Learner(Base):
             f"{self.name}/analytics/K-epoch": k + 1,
             f"{self.name}/analytics/avg_rewards": torch.mean(ext_rewards).item(),
             f"{self.name}/analytics/int_rewards": torch.mean(int_rewards).item(),
+            f"{self.name}/analytics/policy_lr": self.optimizer.param_groups[0]["lr"],
+            f"{self.name}/analytics/critic_lr": self.optimizer.param_groups[1]["lr"],
+            f"{self.name}/analytics/drnd_lr": self.optimizer.param_groups[2]["lr"],
+            f"{self.name}/analytics/drnd_critic_lr": self.optimizer.param_groups[3][
+                "lr"
+            ],
         }
         grad_dict = self.average_dict_values(grad_dicts)
         norm_dict = self.compute_weight_norm(
