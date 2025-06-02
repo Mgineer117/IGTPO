@@ -3,7 +3,7 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=12
+#SBATCH --ntasks=16
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:4
 #SBATCH --time=2-00:00:00
