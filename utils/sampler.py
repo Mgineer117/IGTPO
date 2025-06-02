@@ -360,16 +360,17 @@ class HLSampler(OnlineSampler):
                         if done or option_termination:
                             rew = r
                         else:
-                            [_, a], optionMetaData = policy(
-                                next_state,
-                                option_idx=option_idx,
-                                deterministic=deterministic,
-                            )
-                            a = (
-                                a.cpu().numpy().squeeze(0)
-                                if a.shape[-1] > 1
-                                else [a.item()]
-                            )
+                            with torch.no_grad():
+                                [_, a], optionMetaData = policy(
+                                    next_state,
+                                    option_idx=option_idx,
+                                    deterministic=deterministic,
+                                )
+                                a = (
+                                    a.cpu().numpy().squeeze(0)
+                                    if a.shape[-1] > 1
+                                    else [a.item()]
+                                )
                             option_termination = optionMetaData["option_termination"]
 
                 else:

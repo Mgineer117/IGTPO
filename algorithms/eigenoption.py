@@ -26,6 +26,9 @@ class EigenOption(nn.Module):
         self.args.nupdates = args.timesteps // (
             args.minibatch_size * args.num_minibatch
         )
+        self.args.hl_nupdates = args.hl_timesteps // (
+            args.minibatch_size * args.num_minibatch
+        )
 
         self.current_timesteps = 0
 
@@ -67,6 +70,7 @@ class EigenOption(nn.Module):
             writer=self.writer,
             init_timesteps=self.current_timesteps,
             timesteps=self.args.timesteps,
+            hl_timesteps=self.args.hl_timesteps,
             log_interval=self.args.log_interval,
             eval_num=self.args.eval_num,
             rendering=self.args.rendering,
@@ -111,35 +115,36 @@ class EigenOption(nn.Module):
         self.extractor = extractor
 
     def define_policy(self):
-        actor = PPO_Actor(
-            input_dim=self.args.state_dim,
-            hidden_dim=self.args.actor_fc_dim,
-            action_dim=self.args.action_dim,
-            is_discrete=self.args.is_discrete,
-        )
-        critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
+        # === Define policy === #
+        self.policies = nn.ModuleList([])
+        for i in range(self.args.num_options):
+            actor = PPO_Actor(
+                input_dim=self.args.state_dim,
+                hidden_dim=self.args.actor_fc_dim,
+                action_dim=self.args.action_dim,
+                is_discrete=self.args.is_discrete,
+            )
+            critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        policy = PPO_Learner(
-            actor=actor,
-            critic=critic,
-            nupdates=self.args.nupdates,
-            actor_lr=self.args.actor_lr,
-            critic_lr=self.args.critic_lr,
-            num_minibatch=self.args.num_minibatch,
-            minibatch_size=self.args.minibatch_size,
-            eps_clip=self.args.eps_clip,
-            entropy_scaler=self.args.entropy_scaler,
-            target_kl=self.args.target_kl,
-            gamma=self.args.gamma,
-            gae=self.args.gae,
-            K=self.args.K_epochs,
-            device=self.args.device,
-        )
-        policy.name = "EigenOptionPolicy"
+            policy = PPO_Learner(
+                actor=actor,
+                critic=critic,
+                nupdates=self.args.nupdates,
+                actor_lr=self.args.actor_lr,
+                critic_lr=self.args.critic_lr,
+                num_minibatch=self.args.num_minibatch,
+                minibatch_size=self.args.minibatch_size,
+                eps_clip=self.args.eps_clip,
+                entropy_scaler=self.args.entropy_scaler,
+                target_kl=self.args.target_kl,
+                gamma=self.args.gamma,
+                gae=self.args.gae,
+                K=self.args.K_epochs,
+                device=self.args.device,
+            )
+            policy.name = "EigenOptionPolicy"
+            self.policies.append(policy)
 
-        self.policies = nn.ModuleList(
-            [deepcopy(policy) for _ in range(self.args.num_options)]
-        )
         self.policies.append(self.uniform_random_policy)
 
         actor = PPO_Actor(
@@ -153,6 +158,7 @@ class EigenOption(nn.Module):
         self.hl_policy = EigenOption_Learner(
             actor=actor,
             critic=critic,
+            nupdates=self.args.hl_nupdates,
             actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,
             num_minibatch=self.args.num_minibatch,

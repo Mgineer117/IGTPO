@@ -45,6 +45,7 @@ class EigenOptionTrainer:
         writer: SummaryWriter,
         init_timesteps: int = 0,
         timesteps: int = 1e6,
+        hl_timesteps: int = 1e6,
         log_interval: int = 100,
         eval_num: int = 10,
         rendering: bool = False,
@@ -68,6 +69,7 @@ class EigenOptionTrainer:
         # training parameters
         self.init_timesteps = init_timesteps
         self.timesteps = timesteps
+        self.hl_timesteps = hl_timesteps
 
         self.log_interval = log_interval
         self.eval_interval = int(self.timesteps / self.log_interval)
@@ -144,7 +146,7 @@ class EigenOptionTrainer:
         # assign trained option policies
         eval_idx = 0
         init_timesteps = current_step
-        total_tiemesteps = init_timesteps + self.timesteps
+        total_tiemesteps = init_timesteps + self.hl_timesteps
         self.hl_policy.policies = self.policies
         with tqdm(
             total=total_tiemesteps,
@@ -244,16 +246,17 @@ class EigenOptionTrainer:
                         if done or option_termination:
                             rew = r
                         else:
-                            [_, a], optionMetaData = self.hl_policy(
-                                next_state,
-                                option_idx=option_idx,
-                                deterministic=True,
-                            )
-                            a = (
-                                a.cpu().numpy().squeeze(0)
-                                if a.shape[-1] > 1
-                                else [a.item()]
-                            )
+                            with torch.no_grad():
+                                [_, a], optionMetaData = self.hl_policy(
+                                    next_state,
+                                    option_idx=option_idx,
+                                    deterministic=True,
+                                )
+                                a = (
+                                    a.cpu().numpy().squeeze(0)
+                                    if a.shape[-1] > 1
+                                    else [a.item()]
+                                )
                             option_termination = optionMetaData["option_termination"]
 
                 else:

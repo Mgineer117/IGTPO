@@ -18,6 +18,7 @@ class EigenOption_Learner(Base):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
+        nupdates: int,
         actor_lr: float = 3e-4,
         critic_lr: float = 5e-4,
         num_minibatch: int = 8,
@@ -49,6 +50,7 @@ class EigenOption_Learner(Base):
         self.l2_reg = l2_reg
         self.target_kl = target_kl
         self.eps_clip = eps_clip
+        self.nupdates = nupdates
 
         # trainable networks
         self.policies = [None]  # will be added in trainer
@@ -61,9 +63,15 @@ class EigenOption_Learner(Base):
                 {"params": self.critic.parameters(), "lr": critic_lr},
             ]
         )
+        self.lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+            self.optimizer, lr_lambda=self.lr_lambda
+        )
 
         #
         self.to(self.dtype).to(self.device)
+
+    def lr_lambda(self, step):
+        return 1.0 - float(step) / float(self.nupdates)
 
     def to_device(self, device):
         self.device = device
@@ -196,6 +204,8 @@ class EigenOption_Learner(Base):
             if kl_div.item() > self.target_kl:
                 break
 
+        self.lr_scheduler.step()
+
         # Logging
         loss_dict = {
             f"{self.name}/loss/loss": np.mean(losses),
@@ -207,6 +217,8 @@ class EigenOption_Learner(Base):
             f"{self.name}/analytics/klDivergence": target_kl[-1],
             f"{self.name}/analytics/K-epoch": k + 1,
             f"{self.name}/analytics/avg_rewards": torch.mean(rewards).item(),
+            f"{self.name}/analytics/policy_lr": self.optimizer.param_groups[0]["lr"],
+            f"{self.name}/analytics/critic_lr": self.optimizer.param_groups[1]["lr"],
         }
         grad_dict = self.average_dict_values(grad_dicts)
         norm_dict = self.compute_weight_norm(
