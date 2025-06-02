@@ -27,6 +27,7 @@ class Trainer:
         timesteps: int = 1e6,
         log_interval: int = 100,
         eval_num: int = 10,
+        rendering: bool = False,
         seed: int = 0,
     ) -> None:
         self.env = env
@@ -48,6 +49,7 @@ class Trainer:
         self.last_min_return_mean = 1e10
         self.last_min_return_std = 1e10
 
+        self.rendering = rendering
         self.seed = seed
 
     def train(self) -> dict[str, float]:
@@ -131,7 +133,7 @@ class Trainer:
                     a, _ = self.policy(state, deterministic=True)
                     a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
-                if num_episodes == 0:
+                if num_episodes == 0 or self.rendering:
                     # Plotting
                     # try:
                     image = self.env.render()
@@ -185,9 +187,10 @@ class Trainer:
         self.logger.write_images(step=step, images=image_list, logdir=image_path)
 
     def write_video(self, image: list, step: int, logdir: str, name: str):
-        tensor = np.stack(image, axis=0)
-        video_path = os.path.join(logdir, name)
-        self.logger.write_videos(step=step, images=tensor, logdir=video_path)
+        if image is not None:
+            tensor = np.stack(image, axis=0)
+            video_path = os.path.join(logdir, name)
+            self.logger.write_videos(step=step, images=tensor, logdir=video_path)
 
     def save_model(self, e):
         ### save checkpoint

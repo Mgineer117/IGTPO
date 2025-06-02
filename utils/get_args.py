@@ -136,6 +136,11 @@ def get_args():
         action="store_true",
         help="Path to a directory for storing the log.",
     )
+    parser.add_argument(
+        "--rendering",
+        action="store_true",
+        help="Path to a directory for storing the log.",
+    )
 
     parser.add_argument(
         "--gpu-idx", type=int, default=0, help="Number of training epochs."

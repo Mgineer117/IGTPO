@@ -66,6 +66,7 @@ class IGTPO_Algorithm(nn.Module):
             log_interval=self.args.log_interval,
             eval_num=self.args.eval_num,
             marker=self.args.marker,
+            rendering=self.args.rendering,
             seed=self.args.seed,
         )
         final_steps = trainer.train()

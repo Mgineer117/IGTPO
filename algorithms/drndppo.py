@@ -43,6 +43,7 @@ class DRND_PPO_Algorithm(nn.Module):
             timesteps=self.args.timesteps,
             log_interval=self.args.log_interval,
             eval_num=self.args.eval_num,
+            rendering=self.args.rendering,
             seed=self.args.seed,
         )
 
