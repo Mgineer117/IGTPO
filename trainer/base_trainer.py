@@ -133,7 +133,7 @@ class Trainer:
                     a, _ = self.policy(state, deterministic=True)
                     a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
-                if num_episodes == 0 or self.rendering:
+                if num_episodes == 0 and self.rendering:
                     # Plotting
                     # try:
                     image = self.env.render()
