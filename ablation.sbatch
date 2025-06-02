@@ -4,7 +4,7 @@
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=23
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=2
 #SBATCH --gres=gpu:7
 #SBATCH --time=2-00:00:00
 #SBATCH --output=igtpo-ablation.o%j
