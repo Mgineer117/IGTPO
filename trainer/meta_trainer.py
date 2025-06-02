@@ -443,13 +443,13 @@ class MetaTrainer:
             rdotr = torch.dot(r, r)
             for _ in range(nsteps):
                 Avp = Av_func(p)
-                alpha = rdotr / torch.dot(p, Avp)
+                alpha = rdotr / (torch.dot(p, Avp) + 1e-8)
                 x += alpha * p
                 r -= alpha * Avp
                 new_rdotr = torch.dot(r, r)
                 if new_rdotr < tol:
                     break
-                beta = new_rdotr / rdotr
+                beta = new_rdotr / (rdotr + 1e-8)
                 p = r + beta * p
                 rdotr = new_rdotr
             return x
@@ -470,7 +470,21 @@ class MetaTrainer:
         # Compute step size to satisfy KL constraint
         sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
         lm = torch.sqrt(sAs / max_kl)
-        full_step = step_dir / lm
+
+        # check if step_dir and lm contain nan or inf values
+        if torch.isnan(step_dir).any() or torch.isinf(step_dir).any():
+            self.logger.print("Warning: step_dir contains NaN or Inf values.")
+            return 0, False
+        if torch.isnan(lm).any() or torch.isinf(lm).any():
+            self.logger.print("Warning: lm contains NaN or Inf values.")
+            return 0, False
+
+        full_step = step_dir / (lm + 1e-8)
+
+        # check if full_step contains nan or inf values
+        if torch.isnan(full_step).any() or torch.isinf(full_step).any():
+            self.logger.print("Warning: full_step contains NaN or Inf values.")
+            return 0, False
 
         # Apply update
         with torch.no_grad():
@@ -491,9 +505,6 @@ class MetaTrainer:
                 set_flat_params(policy, old_params)
 
         return i, success
-
-        # new_params = old_params - full_step
-        # set_flat_params(policy, new_params)
 
     def intrinsic_rewards(self, batch, eigenvector):
         states = batch["states"]
