@@ -32,20 +32,13 @@ CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms-v0 --project igtpo -
 sleep 1800
 
 CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name eigenoption & 
-sleep 1800
 CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name ppo & 
-sleep 1800
 CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name igtpo & 
-sleep 1800
 CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name drndppo & 
-sleep 1800
 
 CUDA_VISIBLE_DEVICES=3 python3 main.py --env-name fetch-reach --project igtpo --algo-name eigenoption & 
-sleep 1800
 CUDA_VISIBLE_DEVICES=3 python3 main.py --env-name fetch-reach --project igtpo --algo-name ppo & 
-sleep 1800
 CUDA_VISIBLE_DEVICES=3 python3 main.py --env-name fetch-reach --project igtpo --algo-name igtpo & 
-sleep 1800
 CUDA_VISIBLE_DEVICES=3 python3 main.py --env-name fetch-reach --project igtpo --algo-name drndppo & 
 
 
