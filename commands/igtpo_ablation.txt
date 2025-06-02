@@ -1,15 +1,15 @@
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 --project igtpo-ablation --num-local-updates 5 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 --project igtpo-ablation --num-local-updates 10 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 --project igtpo-ablation --num-local-updates 20 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 2 --project igtpo-grid --num-local-updates 5 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 2 --project igtpo-grid --num-local-updates 10 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 2 --project igtpo-grid --num-local-updates 20 &
 
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 --project igtpo-ablation --entropy-scaler 0.0 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 1 --project igtpo-ablation --entropy-scaler 0.001 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 1 --project igtpo-ablation --entropy-scaler 0.00001 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 2 --project igtpo-grid --entropy-scaler 0.0 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 1 --project igtpo-grid --entropy-scaler 0.001 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 1 --project igtpo-grid --entropy-scaler 0.00001 &
 
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 1 --project igtpo-ablation --target-kl 0.01 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 1 --project igtpo-ablation --target-kl 0.07 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --target-kl 0.1 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 1 --project igtpo-grid --target-kl 0.01 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 1 --project igtpo-grid --target-kl 0.07 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --target-kl 0.1 &
 
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --igtpo-actor-lr 0.0001 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --igtpo-actor-lr 0.01 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --project igtpo-ablation --igtpo-actor-lr 0.1 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --igtpo-actor-lr 0.0001 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --igtpo-actor-lr 0.001 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --igtpo-actor-lr 0.1 &
