@@ -187,7 +187,7 @@ class Trainer:
         self.logger.write_images(step=step, images=image_list, logdir=image_path)
 
     def write_video(self, image: list, step: int, logdir: str, name: str):
-        if image is not None:
+        if len(image) > 0:
             tensor = np.stack(image, axis=0)
             video_path = os.path.join(logdir, name)
             self.logger.write_videos(step=step, images=tensor, logdir=video_path)
