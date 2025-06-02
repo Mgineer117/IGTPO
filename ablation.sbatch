@@ -37,13 +37,13 @@ CUDA_VISIBLE_DEVICES=4 python3 main.py --env-name pointmaze-medium --project igt
 CUDA_VISIBLE_DEVICES=4 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 4096 & 
 CUDA_VISIBLE_DEVICES=4 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 16384 & 
 
-CUDA_VISIBLE_DEVICES=5 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name eigenoption & 
-CUDA_VISIBLE_DEVICES=5 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=5 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name drndppo & 
+CUDA_VISIBLE_DEVICES=5 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name eigenoption & 
+CUDA_VISIBLE_DEVICES=5 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name ppo & 
+CUDA_VISIBLE_DEVICES=5 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name drndppo & 
 
-CUDA_VISIBLE_DEVICES=6 python3 main.py --env-name fetch-reach --project igtpo-ablation --algo-name eigenoption & 
-CUDA_VISIBLE_DEVICES=6 python3 main.py --env-name fetch-reach --project igtpo-ablation --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=6 python3 main.py --env-name fetch-reach --project igtpo-ablation --algo-name drndppo & 
+CUDA_VISIBLE_DEVICES=6 python3 main.py --env-name fetch-reach --project igtpo --algo-name eigenoption & 
+CUDA_VISIBLE_DEVICES=6 python3 main.py --env-name fetch-reach --project igtpo --algo-name ppo & 
+CUDA_VISIBLE_DEVICES=6 python3 main.py --env-name fetch-reach --project igtpo --algo-name drndppo & 
 
 
 
