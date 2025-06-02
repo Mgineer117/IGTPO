@@ -3,9 +3,9 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=23
-#SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:7
+#SBATCH --ntasks=17
+#SBATCH --cpus-per-task=3
+#SBATCH --gres=gpu:5
 #SBATCH --time=2-00:00:00
 #SBATCH --output=igtpo-ablation.o%j
 #SBATCH --mail-type=FAIL
@@ -36,15 +36,6 @@ CUDA_VISIBLE_DEVICES=4 python3 main.py --env-name pointmaze-medium --project igt
 CUDA_VISIBLE_DEVICES=4 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 2048 & 
 CUDA_VISIBLE_DEVICES=4 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 4096 & 
 CUDA_VISIBLE_DEVICES=4 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 16384 & 
-
-CUDA_VISIBLE_DEVICES=5 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name eigenoption & 
-CUDA_VISIBLE_DEVICES=5 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=5 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name drndppo & 
-
-CUDA_VISIBLE_DEVICES=6 python3 main.py --env-name fetch-reach --project igtpo --algo-name eigenoption & 
-CUDA_VISIBLE_DEVICES=6 python3 main.py --env-name fetch-reach --project igtpo --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=6 python3 main.py --env-name fetch-reach --project igtpo --algo-name drndppo & 
-
 
 
 # === Wait for all background jobs to finish ===

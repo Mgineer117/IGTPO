@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --job-name=igtpo-ablation
+#SBATCH --account=huytran1-ic
+#SBATCH --partition=eng-research-gpu
+#SBATCH --nodes=1
+#SBATCH --ntasks=12
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:4
+#SBATCH --time=2-00:00:00
+#SBATCH --output=igtpo-ablation.o%j
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=minjae5@illinois.edu
+
+
+# === Run Experiments in Parallel ===
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze --project igtpo --algo-name eigenoption & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze --project igtpo --algo-name ppo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze --project igtpo --algo-name drndppo & 
+
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms --project igtpo --algo-name eigenoption & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms --project igtpo --algo-name ppo & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms --project igtpo --algo-name drndppo & 
+
+CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name eigenoption & 
+CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name ppo & 
+CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name drndppo & 
+
+CUDA_VISIBLE_DEVICES=3 python3 main.py --env-name fetch-reach --project igtpo --algo-name eigenoption & 
+CUDA_VISIBLE_DEVICES=3 python3 main.py --env-name fetch-reach --project igtpo --algo-name ppo & 
+CUDA_VISIBLE_DEVICES=3 python3 main.py --env-name fetch-reach --project igtpo --algo-name drndppo & 
+
+
+
+# === Wait for all background jobs to finish ===
+wait
