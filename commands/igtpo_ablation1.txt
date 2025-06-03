@@ -6,4 +6,4 @@ nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project
 sleep 30
 nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --entropy-scaler 0.0 &
 sleep 30
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 1 --project igtpo-grid --entropy-scaler 0.00001 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --entropy-scaler 0.00001 &
