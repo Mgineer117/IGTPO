@@ -381,7 +381,7 @@ class HLSampler(OnlineSampler):
                 # saving the data
                 data["states"][current_step + t] = state
                 data["next_states"][current_step + t] = next_state
-                data["actions"][current_step + t] = option_idx
+                data["actions"][current_step + t] = metaData["logits"]
                 data["rewards"][current_step + t] = rew
                 data["terminals"][current_step + t] = done
                 data["logprobs"][current_step + t] = (

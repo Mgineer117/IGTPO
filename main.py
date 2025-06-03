@@ -37,6 +37,10 @@ def run(args, seed, unique_id, exp_time):
         from algorithms.trpo import TRPO_Algorithm
 
         algo = TRPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
+    elif args.algo_name == "psne":
+        from algorithms.psne import PSNE_Algorithm
+
+        algo = PSNE_Algorithm(env=env, logger=logger, writer=writer, args=args)
     elif args.algo_name == "igtpo":
         from algorithms.igtpo import IGTPO_Algorithm
 

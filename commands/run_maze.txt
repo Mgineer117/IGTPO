@@ -1,0 +1,7 @@
+nohup python3 main.py --env-name maze-v0 --project igtpo --algo-name ppo & 
+nohup python3 main.py --env-name maze-v0 --project igtpo --algo-name trpo & 
+nohup python3 main.py --env-name maze-v0 --project igtpo --algo-name psne & 
+nohup python3 main.py --env-name maze-v0 --project igtpo --algo-name drndppo & 
+nohup python3 main.py --env-name maze-v0 --project igtpo --algo-name eigenoption & 
+sleep 300
+nohup python3 main.py --env-name maze-v0 --project igtpo --algo-name igtpo & 

@@ -86,9 +86,10 @@ class EigenOption_Learner(Base):
     ):
         state = self.preprocess_state(state)
         if option_idx is None:
-            option_idx, metaData = self.actor(state, deterministic=deterministic)
-            option_idx = torch.argmax(option_idx, dim=-1).item()
+            logits, metaData = self.actor(state, deterministic=deterministic)
+            option_idx = torch.argmax(logits, dim=-1).item()
         else:
+            logits = torch.tensor(np.full((1, self.action_dim), np.nan)).to(self.device)
             metaData = {
                 "probs": torch.tensor(np.nan).to(self.device),
                 "logprobs": torch.tensor(np.nan).to(self.device),
@@ -107,6 +108,7 @@ class EigenOption_Learner(Base):
             option_termination = False
 
         return [option_idx, a], {
+            "logits": logits,
             "probs": metaData["probs"],
             "logprobs": metaData["logprobs"],
             "entropy": metaData["entropy"],

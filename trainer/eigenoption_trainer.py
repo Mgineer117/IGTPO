@@ -243,8 +243,10 @@ class EigenOptionTrainer:
                         done = term or trunc
 
                         r += self.hl_policy.gamma**i * rew
+
                         if done or option_termination:
                             rew = r
+                            break
                         else:
                             with torch.no_grad():
                                 [_, a], optionMetaData = self.hl_policy(

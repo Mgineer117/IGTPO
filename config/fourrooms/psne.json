@@ -1,0 +1,6 @@
+{
+    "timesteps": 3e6,
+    "target_kl": 0.01,
+    "batch_size": 1024,
+    "gamma": 0.99
+}

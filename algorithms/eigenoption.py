@@ -83,16 +83,20 @@ class EigenOption(nn.Module):
         trainer.train()
 
     def define_extractor(self):
+        # if model directory does not exist, create it
+        if not os.path.exists("model"):
+            os.makedirs("model")
         model_path = f"model/{self.args.env_name}-feature_network.pth"
         extractor = get_extractor(self.args)
 
+        self.uniform_random_policy = UniformRandom(
+            state_dim=self.args.state_dim,
+            action_dim=self.args.action_dim,
+            is_discrete=self.args.is_discrete,
+            device=self.args.device,
+        )
+
         if not os.path.exists(model_path):
-            self.uniform_random_policy = UniformRandom(
-                state_dim=self.args.state_dim,
-                action_dim=self.args.action_dim,
-                is_discrete=self.args.is_discrete,
-                device=self.args.device,
-            )
             sampler = OnlineSampler(
                 state_dim=self.args.state_dim,
                 action_dim=self.args.action_dim,
