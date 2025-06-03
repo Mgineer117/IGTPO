@@ -1,2 +1,0 @@
-nohup python3 main.py --algo-name eigenoption --env-name maze-v0 --gpu-idx 0 --project igtpo &
-nohup python3 main.py --algo-name eigenoption --env-name ninerooms-v0 --gpu-idx 1 --project igtpo &

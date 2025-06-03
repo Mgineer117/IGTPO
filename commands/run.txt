@@ -1,8 +1,0 @@
-nohup python3 main.py --algo-name eigenoption --env-name pointmaze-medium --gpu-idx 0 --project igtpo &
-nohup python3 main.py --algo-name eigenoption --env-name fetch-reach --gpu-idx 1 --project igtpo &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 --project igtpo --num-local-updates 50 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 --project igtpo --num-local-updates 25 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 2 --project igtpo --num-local-updates 10 &
-nohup python3 main.py --algo-name igtpo --env-name fetch-reach --gpu-idx 3 --project igtpo --num-local-updates 10 &
-nohup python3 main.py --algo-name igtpo --env-name fetch-reach --gpu-idx 3 --project igtpo --num-local-updates 25 &
-nohup python3 main.py --algo-name igtpo --env-name fetch-reach --gpu-idx 3 --project igtpo --num-local-updates 50 &
