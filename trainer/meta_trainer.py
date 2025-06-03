@@ -246,15 +246,10 @@ class MetaTrainer:
                 )
 
                 # Apply averaged meta-gradient
-                old_policy = deepcopy(self.policy.actor)
-                backtrack_iter, backtrack_success = self.trpo_meta_step(
-                    policy=self.policy.actor,
-                    old_policy=old_policy,
-                    meta_grad=averaged_meta_gradients,
+                backtrack_iter, backtrack_success = self.policy.trpo_learn(
                     states=meta_batch["states"],
-                    max_kl=self.policy.target_kl,  # or your own trust region size
+                    grads=averaged_meta_gradients,
                 )
-                self.policy.lr_scheduler()
 
                 # === Update progress ===
                 pbar.update(total_timesteps)
@@ -395,116 +390,6 @@ class MetaTrainer:
         }
 
         return eval_dict, image_array
-
-    def trpo_meta_step(
-        self,
-        policy: nn.Module,
-        old_policy: nn.Module,
-        meta_grad: torch.Tensor,
-        states: np.ndarray,
-        max_kl: float = 1e-2,
-        damping: float = 1e-1,
-        backtrack_iters: int = 10,
-        backtrack_coeff: float = 0.8,
-    ):
-        states = torch.from_numpy(states).to(self.policy.device)
-        states = states.view(states.shape[0], -1)
-
-        def flat_params(model):
-            return torch.cat([p.data.view(-1) for p in model.parameters()])
-
-        def set_flat_params(model, flat_params):
-            pointer = 0
-            for p in model.parameters():
-                num_param = p.numel()
-                p.data.copy_(flat_params[pointer : pointer + num_param].view_as(p))
-                pointer += num_param
-
-        def compute_kl(old_policy, new_policy, obs):
-            _, old_infos = old_policy(obs)
-            _, new_infos = new_policy(obs)
-
-            kl = torch.distributions.kl_divergence(old_infos["dist"], new_infos["dist"])
-            return kl.mean()
-
-        def hessian_vector_product(kl_fn, model, v):
-            kl = kl_fn()
-            grads = torch.autograd.grad(kl, model.parameters(), create_graph=True)
-            flat_grads = torch.cat([g.view(-1) for g in grads])
-            g_v = (flat_grads * v).sum()
-            hv = torch.autograd.grad(g_v, model.parameters())
-            flat_hv = torch.cat([h.contiguous().view(-1) for h in hv])
-            return flat_hv + damping * v
-
-        def conjugate_gradients(Av_func, b, nsteps=10, tol=1e-10):
-            x = torch.zeros_like(b)
-            r = b.clone()
-            p = b.clone()
-            rdotr = torch.dot(r, r)
-            for _ in range(nsteps):
-                Avp = Av_func(p)
-                alpha = rdotr / (torch.dot(p, Avp) + 1e-8)
-                x += alpha * p
-                r -= alpha * Avp
-                new_rdotr = torch.dot(r, r)
-                if new_rdotr < tol:
-                    break
-                beta = new_rdotr / (rdotr + 1e-8)
-                p = r + beta * p
-                rdotr = new_rdotr
-            return x
-
-        # Flatten meta-gradients
-        meta_grad_flat = torch.cat([g.view(-1) for g in meta_grad]).detach()
-
-        # KL function (closure)
-        def kl_fn():
-            return compute_kl(old_policy, policy, states)
-
-        # Define HVP function
-        Hv = lambda v: hessian_vector_product(kl_fn, policy, v)
-
-        # Compute step direction with CG
-        step_dir = conjugate_gradients(Hv, meta_grad_flat, nsteps=10)
-
-        # Compute step size to satisfy KL constraint
-        sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
-        lm = torch.sqrt(sAs / max_kl)
-
-        # check if step_dir and lm contain nan or inf values
-        if torch.isnan(step_dir).any() or torch.isinf(step_dir).any():
-            self.logger.print("Warning: step_dir contains NaN or Inf values.")
-            return 0, False
-        if torch.isnan(lm).any() or torch.isinf(lm).any():
-            self.logger.print("Warning: lm contains NaN or Inf values.")
-            return 0, False
-
-        full_step = step_dir / (lm + 1e-8)
-
-        # check if full_step contains nan or inf values
-        if torch.isnan(full_step).any() or torch.isinf(full_step).any():
-            self.logger.print("Warning: full_step contains NaN or Inf values.")
-            return 0, False
-
-        # Apply update
-        with torch.no_grad():
-            old_params = flat_params(policy)
-
-            # Backtracking line search
-            success = False
-            for i in range(backtrack_iters):
-                step_frac = backtrack_coeff**i
-                new_params = old_params - step_frac * full_step
-                set_flat_params(policy, new_params)
-                kl = compute_kl(old_policy, policy, states)
-
-                if kl <= max_kl:
-                    success = True
-                    break
-            else:
-                set_flat_params(policy, old_params)
-
-        return i, success
 
     def intrinsic_rewards(self, batch, eigenvector):
         states = batch["states"]

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
-from policy.ppo import PPO_Learner
+from policy.trpo import TRPO_Learner
 from trainer.base_trainer import Trainer
 from utils.sampler import OnlineSampler
 
@@ -17,9 +17,7 @@ class TRPO_Algorithm(nn.Module):
         self.writer = writer
         self.args = args
 
-        self.args.nupdates = args.timesteps // (
-            args.minibatch_size * args.num_minibatch
-        )
+        self.args.nupdates = args.timesteps // args.batch_size
 
     def begin_training(self):
         # === Define policy === #
@@ -30,7 +28,7 @@ class TRPO_Algorithm(nn.Module):
             state_dim=self.args.state_dim,
             action_dim=self.args.action_dim,
             episode_len=self.env.max_steps,
-            batch_size=int(self.args.minibatch_size * self.args.num_minibatch),
+            batch_size=self.args.batch_size,
         )
 
         trainer = Trainer(
@@ -57,19 +55,14 @@ class TRPO_Algorithm(nn.Module):
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        self.policy = PPO_Learner(
+        self.policy = TRPO_Learner(
             actor=actor,
             critic=critic,
             nupdates=self.args.nupdates,
-            actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,
-            num_minibatch=self.args.num_minibatch,
-            minibatch_size=self.args.minibatch_size,
-            eps_clip=self.args.eps_clip,
-            entropy_scaler=self.args.entropy_scaler,
+            batch_size=self.args.batch_size,
             target_kl=self.args.target_kl,
             gamma=self.args.gamma,
             gae=self.args.gae,
-            K=self.args.K_epochs,
             device=self.args.device,
         )

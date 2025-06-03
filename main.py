@@ -33,6 +33,10 @@ def run(args, seed, unique_id, exp_time):
         from algorithms.ppo import PPO_Algorithm
 
         algo = PPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
+    elif args.algo_name == "trpo":
+        from algorithms.trpo import TRPO_Algorithm
+
+        algo = TRPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
     elif args.algo_name == "igtpo":
         from algorithms.igtpo import IGTPO_Algorithm
 
