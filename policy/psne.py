@@ -114,9 +114,7 @@ class PSNE_Learner(Base):
         self.sample_policy()
 
     def lr_scheduler(self):
-        self.target_kl = (self.init_target_kl - 0.01) * (
-            1 - self.steps / self.nupdates
-        ) + 0.01
+        self.target_kl = self.init_target_kl * (1 - self.steps / self.nupdates)
         self.steps += 1
 
     def sample_policy(self):

@@ -110,9 +110,7 @@ class TRPO_Learner(Base):
         self.to(self.dtype).to(self.device)
 
     def lr_scheduler(self):
-        self.target_kl = (self.init_target_kl - 0.01) * (
-            1 - self.steps / self.nupdates
-        ) + 0.01
+        self.target_kl = self.init_target_kl * (1 - self.steps / self.nupdates)
         self.steps += 1
 
     def forward(self, state: np.ndarray, deterministic: bool = False):

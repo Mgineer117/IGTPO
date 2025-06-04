@@ -109,7 +109,7 @@ class IGTPO_Learner(Base):
         self.to(self.dtype).to(self.device)
 
     def lr_scheduler(self, fraction: float):
-        self.target_kl = (self.init_target_kl - 0.01) * (1 - fraction) + 0.01
+        self.target_kl = self.init_target_kl * (1 - fraction)
         self.steps += 1
 
     def forward(self, state: np.ndarray, deterministic: bool = False):
