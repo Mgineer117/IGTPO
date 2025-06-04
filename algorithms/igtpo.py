@@ -26,16 +26,10 @@ class IGTPO_Algorithm(nn.Module):
         self.args = args
 
         self.args.igtpo_nupdates = int(args.timesteps * 0.9) // (
-            args.minibatch_size
-            * args.num_minibatch
-            * args.num_local_updates
-            * args.num_options
+            args.batch_size * args.num_local_updates * args.num_options
         )
         self.args.ppo_nupdates = int(args.timesteps * 0.1) // (
-            args.minibatch_size
-            * args.num_minibatch
-            * args.num_local_updates
-            * args.num_options
+            args.minibatch_size * args.num_minibatch
         )
 
         self.current_timesteps = 0

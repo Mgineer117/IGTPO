@@ -96,9 +96,9 @@ class IGTPO_Learner(Base):
         self.gae = gae
         self.K = K
         self.l2_reg = l2_reg
+        self.eps_clip = eps_clip
         self.init_target_kl = target_kl
         self.target_kl = target_kl
-        self.eps_clip = eps_clip
 
         # trainable networks
         self.actor = actor
@@ -108,8 +108,8 @@ class IGTPO_Learner(Base):
         self.steps = 0
         self.to(self.dtype).to(self.device)
 
-    def lr_scheduler(self):
-        self.target_kl = self.init_target_kl * (1 - self.steps / self.nupdates)
+    def lr_scheduler(self, fraction: float):
+        self.target_kl = (self.init_target_kl - 0.01) * (1 - fraction) + 0.01
         self.steps += 1
 
     def forward(self, state: np.ndarray, deterministic: bool = False):
@@ -185,9 +185,6 @@ class IGTPO_Learner(Base):
 
             if not success:
                 set_flat_params(self.actor, old_params)
-
-        # reduce target_kl for next iteration
-        self.lr_scheduler()
 
         return i, success
 

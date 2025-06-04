@@ -68,6 +68,7 @@ class PSNE_Learner(Base):
         states: np.ndarray,
         nupdates: int,
         critic_lr: float = 5e-4,
+        entropy_scaler: float = 1e-3,
         batch_size: int = 8,
         l2_reg: float = 1e-8,
         target_kl: float = 0.03,
@@ -88,6 +89,7 @@ class PSNE_Learner(Base):
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
 
+        self.entropy_scaler = entropy_scaler
         self.batch_size = batch_size
         self.damping = damping
         self.gamma = gamma
@@ -112,7 +114,9 @@ class PSNE_Learner(Base):
         self.sample_policy()
 
     def lr_scheduler(self):
-        self.target_kl = self.init_target_kl * (1 - self.steps / self.nupdates)
+        self.target_kl = (self.init_target_kl - 0.01) * (
+            1 - self.steps / self.nupdates
+        ) + 0.01
         self.steps += 1
 
     def sample_policy(self):
@@ -173,7 +177,7 @@ class PSNE_Learner(Base):
 
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        actor_gradients, actor_loss = self.actor_loss(
+        actor_gradients, actor_loss, entropy_loss = self.actor_loss(
             states, actions, old_logprobs, advantages
         )
 
@@ -222,7 +226,9 @@ class PSNE_Learner(Base):
 
         # === critic update === #
         value_loss, l2_loss = self.critic_loss(states, returns)
-        loss = value_loss + l2_loss + actor_loss  # actor_loss is already detached
+        loss = (
+            value_loss + l2_loss + actor_loss + entropy_loss
+        )  # actor_loss is already detached
         self.optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
@@ -230,14 +236,19 @@ class PSNE_Learner(Base):
 
         # Logging
         loss_dict = {
-            f"{self.name}/loss/loss": np.mean(loss.item()),
-            f"{self.name}/loss/actor_loss": np.mean(actor_loss.item()),
-            f"{self.name}/loss/value_loss": np.mean(value_loss.item()),
-            f"{self.name}/loss/l2_loss": np.mean(l2_loss.item()),
+            f"{self.name}/loss/loss": loss.item(),
+            f"{self.name}/loss/actor_loss": actor_loss.item(),
+            f"{self.name}/loss/entropy_loss": entropy_loss.item(),
+            f"{self.name}/loss/value_loss": value_loss.item(),
+            f"{self.name}/loss/l2_loss": l2_loss.item(),
+            f"{self.name}/analytics/grad_norm (actor)": torch.linalg.norm(
+                grad_flat
+            ).item(),
             f"{self.name}/analytics/backtrack_iter": i,
             f"{self.name}/analytics/backtrack_success": int(success),
             f"{self.name}/analytics/klDivergence": kl.item(),
             f"{self.name}/analytics/avg_rewards": torch.mean(rewards).item(),
+            f"{self.name}/analytics/target_kl": self.target_kl,
             f"{self.name}/analytics/critic_lr": self.optimizer.param_groups[0]["lr"],
         }
         norm_dict = self.compute_weight_norm(
@@ -266,17 +277,21 @@ class PSNE_Learner(Base):
     ):
         _, metaData = self.actor(states)
         logprobs = self.actor.log_prob(metaData["dist"], actions)
+        entropy = self.actor.entropy(metaData["dist"])
         ratios = torch.exp(logprobs - old_logprobs)
 
         surr = ratios * advantages
         actor_loss = -surr.mean()
+        entropy_loss = self.entropy_scaler * entropy.mean()
+
+        loss = actor_loss + entropy_loss
 
         # Compute gradients wrt mean and logstd predictors
         actor_gradients = torch.autograd.grad(
-            actor_loss, self.actor.parameters(), retain_graph=True
+            loss, self.actor.parameters(), retain_graph=True
         )
 
-        return actor_gradients, actor_loss.detach()
+        return actor_gradients, actor_loss.detach(), entropy_loss.detach()
 
     def critic_loss(self, states: torch.Tensor, returns: torch.Tensor):
         mb_values = self.critic(states)

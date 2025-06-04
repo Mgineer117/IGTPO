@@ -80,6 +80,7 @@ class PSNE_Algorithm(nn.Module):
             states=batch["states"],
             nupdates=self.args.nupdates,
             critic_lr=self.args.critic_lr,
+            entropy_scaler=self.args.entropy_scaler,
             batch_size=self.args.batch_size,
             target_kl=self.args.target_kl,
             gamma=self.args.gamma,

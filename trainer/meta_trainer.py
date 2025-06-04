@@ -75,7 +75,8 @@ class MetaTrainer:
         self.timesteps = timesteps
 
         self.log_interval = log_interval
-        self.prune_interval = int(self.timesteps / self.num_vectors)
+        self.prune_interval = int((self.timesteps / 2) / self.num_vectors)
+        self.trim_interval = int((self.timesteps / 2) / (self.num_local_updates - 2))
         self.eval_interval = int(self.timesteps / self.log_interval)
 
         # initialize the essential training components
@@ -94,6 +95,7 @@ class MetaTrainer:
         # Train loop
         eval_idx = 0
         prune_idx = 0
+        trim_idx = int(self.timesteps / 2) / self.trim_interval
 
         with tqdm(
             total=self.timesteps + self.init_timesteps,
@@ -245,7 +247,7 @@ class MetaTrainer:
                     for grads_per_param in meta_gradients_transposed
                 )
 
-                # Apply averaged meta-gradient
+                # === TRPO update === #
                 backtrack_iter, backtrack_success = self.policy.trpo_learn(
                     states=meta_batch["states"],
                     grads=averaged_meta_gradients,
@@ -273,7 +275,7 @@ class MetaTrainer:
                 loss_dict[f"{self.policy.name}/parameters/num vectors"] = (
                     self.num_vectors
                 )
-                loss_dict[f"{self.policy.name}/parameters/policy K"] = (
+                loss_dict[f"{self.policy.name}/parameters/num_local_updates"] = (
                     self.num_local_updates
                 )
                 loss_dict[f"{self.policy.name}/analytics/Contributing Option"] = int(
@@ -290,6 +292,11 @@ class MetaTrainer:
                 )
 
                 self.write_log(loss_dict, step=current_step)
+
+                # === reduce target_kl === #
+                self.policy.lr_scheduler(
+                    current_step / (self.timesteps + self.init_timesteps)
+                )
 
                 # === PRUNE TWIG === #
                 if self.num_vectors > 1:
@@ -312,6 +319,11 @@ class MetaTrainer:
 
                         # Update the number of vectors
                         self.num_vectors = self.eigenvectors.shape[0]
+
+                # === TRIM TWIG === #
+                if self.num_local_updates > 2:
+                    if current_step > self.trim_interval * trim_idx:
+                        self.num_local_updates -= 1
 
                 # === EVALUATIONS === #
                 if current_step >= self.eval_interval * eval_idx:
