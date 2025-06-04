@@ -324,6 +324,7 @@ class MetaTrainer:
                 if self.num_local_updates > 2:
                     if current_step > self.trim_interval * trim_idx:
                         self.num_local_updates -= 1
+                        trim_idx += 1
 
                 # === EVALUATIONS === #
                 if current_step >= self.eval_interval * eval_idx:

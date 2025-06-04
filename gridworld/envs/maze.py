@@ -35,7 +35,7 @@ class Maze(MultiGridEnv):
     def __init__(
         self,
         grid_type: int = 0,
-        max_steps: int = 200,
+        max_steps: int = 300,
         highlight_visible_cells: bool | None = False,
         tile_size: int = 10,
         state_representation: str = "tensor",
@@ -68,7 +68,7 @@ class Maze(MultiGridEnv):
         ]
 
         # Define positions for goals and agents
-        self.goal_positions = [(14, 8)]
+        self.goal_positions = [(15, 8)]
         self.agent_positions = [(1, 13)]
 
         # Explicit maze structure based on the image
@@ -84,13 +84,13 @@ class Maze(MultiGridEnv):
                 "# #     # #       #",
                 "# #     # # #######",
                 "#       # #       #",
-                "# #     # # #     #",
+                "# ##### # # #     #",
                 "# #         #     #",
                 "# # #########     #",
-                "# # #       #     #",
-                "# # #       # #####",
                 "# #         #     #",
                 "# # #       ##### #",
+                "# # #       #     #",
+                "# # #       # #####",
                 "#   #             #",
                 "###################",
             ]
@@ -154,15 +154,29 @@ class Maze(MultiGridEnv):
         self.put_obj(goal, *self.goal_positions[self.grid_type])
         goal.init_pos, goal.cur_pos = self.goal_positions[self.grid_type]
 
-        # # place agent
-        # if options["random_init_pos"]:
-        #     coords = self.find_obj_coordinates(None)
-        #     agent_positions = random.sample(coords, 1)[0]
-        # else:
-        agent_positions = self.agent_positions[self.grid_type]
+        # place agent
+        if options["random_init_pos"]:
+            coords = self.find_obj_coordinates(None)
+            agent_positions = random.sample(coords, 1)[0]
+        else:
+            agent_positions = self.agent_positions[self.grid_type]
 
         for agent in self.agents:
             self.place_agent(agent, pos=agent_positions)
+
+    def find_obj_coordinates(self, obj) -> tuple[int, int] | None:
+        """
+        Finds the coordinates (i, j) of the first occurrence of None in the grid.
+        Returns None if no None value is found.
+        """
+        coord_list = []
+        for index, value in enumerate(self.grid.grid):
+            if value is obj:
+                # Calculate the (i, j) coordinates from the 1D index
+                i = index % self.width
+                j = index // self.width
+                coord_list.append((i, j))
+        return coord_list
 
     def reset(
         self,

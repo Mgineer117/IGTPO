@@ -52,7 +52,7 @@ def get_args():
         help='Seed-specific folder name in the "group" folder.',
     )
     parser.add_argument(
-        "--env-name", type=str, default="fetch-reach", help="Name of the model."
+        "--env-name", type=str, default="pointmaze-medium", help="Name of the model."
     )
     parser.add_argument("--algo-name", type=str, default="ppo", help="Disable cuda.")
     parser.add_argument("--seed", type=int, default=42, help="Batch size.")
@@ -75,7 +75,7 @@ def get_args():
         "--actor-lr", type=float, default=1e-4, help="Base learning rate."
     )
     parser.add_argument(
-        "--critic-lr", type=float, default=2e-4, help="Base learning rate."
+        "--critic-lr", type=float, default=1e-4, help="Base learning rate."
     )
     parser.add_argument(
         "--eps-clip", type=float, default=None, help="Base learning rate."
@@ -102,7 +102,7 @@ def get_args():
         help="Number of training epochs.",
     )
     parser.add_argument(
-        "--log-interval", type=int, default=100, help="Number of training epochs."
+        "--log-interval", type=int, default=25, help="Number of training epochs."
     )
     parser.add_argument(
         "--eval-num", type=int, default=10, help="Number of training epochs."

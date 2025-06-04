@@ -1,6 +1,6 @@
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --num-local-updates 5 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --num-local-updates 10 --timesteps 50000000 &
 sleep 30
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --num-local-updates 10 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --num-local-updates 20 --timesteps 50000000 &
 sleep 30
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --num-local-updates 20 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --num-local-updates 30 --timesteps 50000000 &
 
