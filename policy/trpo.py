@@ -189,8 +189,6 @@ class TRPO_Learner(Base):
             if not success:
                 set_flat_params(self.actor, old_params)
 
-        self.lr_scheduler()
-
         # === critic update === #
         value_loss, l2_loss = self.critic_loss(states, returns)
         loss = value_loss + l2_loss + actor_loss  # actor_loss is already detached
@@ -225,6 +223,9 @@ class TRPO_Learner(Base):
 
         timesteps = self.batch_size
         update_time = time.time() - t0
+
+        # reduce target_kl for next iteration
+        self.lr_scheduler()
 
         return loss_dict, timesteps, update_time
 
