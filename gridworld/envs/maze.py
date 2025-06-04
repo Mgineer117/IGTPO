@@ -182,7 +182,7 @@ class Maze(MultiGridEnv):
         self,
         *,
         seed: int | None = None,
-        options: dict | None = None,
+        options: dict = {},
     ):
         obs, info = super().reset(seed=seed, options=options)
 
