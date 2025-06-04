@@ -27,10 +27,10 @@ CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igt
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 2048 & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 4096 & 
 
-CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.03 &
 CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.05 &
 CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.07 &
 CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.09 &
+CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.13 &
 
 # === Wait for all background jobs to finish ===
 wait

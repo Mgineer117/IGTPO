@@ -4,7 +4,7 @@
     "eps_clip": 0.2,
     "K_epochs": 5,
     "num_local_updates": 15,
-    "target_kl": 0.01,
+    "target_kl": 0.03,
     "num_options": 4,
     "num_minibatch": 4,
     "minibatch_size": 2048,
