@@ -3,7 +3,4 @@ sleep 30
 nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --num-local-updates 10 &
 sleep 30
 nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --num-local-updates 20 &
-sleep 30
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --entropy-scaler 0.0 &
-sleep 30
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --entropy-scaler 0.00001 &
+
