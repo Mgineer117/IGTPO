@@ -186,6 +186,9 @@ class IGTPO_Learner(Base):
             if not success:
                 set_flat_params(self.actor, old_params)
 
+        # reduce target_kl for next iteration
+        self.lr_scheduler()
+
         return i, success
 
     def learn(self, critic: nn.Module, batch: dict, prefix: str):
