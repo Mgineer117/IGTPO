@@ -1,6 +1,6 @@
 {
     "extractor_epochs": 0,
-    "hl_timesteps": 1e7,
+    "hl_timesteps": 1.5e7,
     "timesteps": 2.5e6,
     "eps_clip": 0.2,
     "K_epochs": 5,

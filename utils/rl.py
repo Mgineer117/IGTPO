@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -125,6 +126,11 @@ def get_vector(env, extractor, args):
     # perform a spectral analysis
     cov = torch.cov(features.T)
     eigval, eigvec = torch.linalg.eigh(cov)
+
+    eigval = eigval.real.to(args.device)  # Ensure eigenvalues are real
+    eigvec = eigvec.to(args.device)  # Ensure eigenvectors are on the correct device
+
+    # print(eigval)
 
     # Sort eigenvalues in descending order and get indices
     sorted_indices = torch.argsort(eigval, descending=True)

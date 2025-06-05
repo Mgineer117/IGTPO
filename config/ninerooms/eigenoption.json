@@ -1,6 +1,6 @@
 {
     "extractor_epochs": 10000,
-    "hl_timesteps": 4e6,
+    "hl_timesteps": 9e6,
     "timesteps": 2e6,
     "extractor_type": "CNN",
     "feature_dim": 64,
