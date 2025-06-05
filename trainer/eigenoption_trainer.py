@@ -231,21 +231,17 @@ class EigenOptionTrainer:
                     a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
                 if num_episodes == 0 and self.rendering:
-                    # Plotting
                     image = self.env.render()
                     image_array.append(image)
 
                 if metaData["is_option"]:
-                    r = 0
                     option_termination = False
                     for i in range(10):
                         next_state, rew, term, trunc, infos = self.env.step(a)
                         done = term or trunc
-
-                        r += self.hl_policy.gamma**i * rew
+                        ep_reward.append(rew)
 
                         if done or option_termination:
-                            rew = r
                             break
                         else:
                             with torch.no_grad():
@@ -260,14 +256,13 @@ class EigenOptionTrainer:
                                     else [a.item()]
                                 )
                             option_termination = optionMetaData["option_termination"]
-
                 else:
                     # env stepping
                     next_state, rew, term, trunc, infos = self.env.step(a)
                     done = term or trunc
+                    ep_reward.append(rew)
 
                 state = next_state
-                ep_reward.append(rew)
 
                 if done:
                     ep_buffer.append(

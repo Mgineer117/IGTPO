@@ -134,12 +134,8 @@ class Trainer:
                     a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
                 if num_episodes == 0 and self.rendering:
-                    # Plotting
-                    # try:
                     image = self.env.render()
                     image_array.append(image)
-                    # except:
-                    #     pass
 
                 next_state, rew, term, trunc, infos = self.env.step(a)
                 done = term or trunc

@@ -9,6 +9,5 @@
     "target_kl": 0.01,
     "num_options": 8,
     "num_minibatch": 4,
-    "minibatch_size": 512,
-    "gamma": 0.99
+    "minibatch_size": 1024
 }

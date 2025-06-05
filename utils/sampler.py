@@ -359,6 +359,7 @@ class HLSampler(OnlineSampler):
                         r += self.gamma**i * rew
                         if done or option_termination:
                             rew = r
+                            break
                         else:
                             with torch.no_grad():
                                 [_, a], optionMetaData = policy(

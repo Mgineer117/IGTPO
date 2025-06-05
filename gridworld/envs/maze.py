@@ -35,7 +35,7 @@ class Maze(MultiGridEnv):
     def __init__(
         self,
         grid_type: int = 0,
-        max_steps: int = 300,
+        max_steps: int = 200,
         highlight_visible_cells: bool | None = False,
         tile_size: int = 10,
         state_representation: str = "tensor",
@@ -302,6 +302,13 @@ class Maze(MultiGridEnv):
         observations = self.get_obs()
 
         return observations, rewards, terminated, truncated, info
+
+    def _reward(self, current_agent, rewards, reward=1):
+        """
+        Compute the reward to be given upon success
+        """
+        rewards[current_agent] += reward
+        return rewards
 
     def get_obs(
         self,

@@ -126,7 +126,7 @@ class IGTPO_Learner(Base):
     def trpo_learn(
         self,
         states: np.ndarray,
-        grads: torch.Tensor,
+        grads: tuple[torch.Tensor],
         damping: float = 1e-1,
         backtrack_iters: int = 10,
         backtrack_coeff: float = 0.8,
@@ -188,7 +188,9 @@ class IGTPO_Learner(Base):
 
         return i, success
 
-    def learn(self, critic: nn.Module, batch: dict, prefix: str):
+    def learn(
+        self, critic: nn.Module, batch: dict, momentum: torch.Tensor | None, prefix: str
+    ):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
@@ -221,11 +223,17 @@ class IGTPO_Learner(Base):
         )
 
         # 4. Total loss
+        if prefix == "meta":
+            entropy_loss *= 0.0  # No entropy loss for meta-IGTPO
+
         loss = actor_loss - entropy_loss
 
         # 5. Compute gradients (example)
         gradients = torch.autograd.grad(loss, self.parameters(), create_graph=True)
-        gradients = self.clip_grad_norm(gradients, max_norm=1.0)
+        if momentum is not None:
+            # perform tuple addition
+            gradients = tuple(g + m for g, m in zip(gradients, momentum))
+        gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
         # 6. Manual SGD update (structured, not flat)
         actor_clone = deepcopy(self.actor)

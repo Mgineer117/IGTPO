@@ -45,6 +45,10 @@ def run(args, seed, unique_id, exp_time):
         from algorithms.igtpo import IGTPO_Algorithm
 
         algo = IGTPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
+    elif args.algo_name == "metaigtpo":
+        from algorithms.metaigtpo import MetaIGTPO_Algorithm
+
+        algo = MetaIGTPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
     elif args.algo_name == "drndppo":
         from algorithms.drndppo import DRND_PPO_Algorithm
 

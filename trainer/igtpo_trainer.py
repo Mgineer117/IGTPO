@@ -30,7 +30,7 @@ def compare_weights(policy1, policy2):
 
 
 # model-free policy trainer
-class MetaTrainer:
+class IGTPOTrainer:
     def __init__(
         self,
         env: gym.Env,
@@ -137,7 +137,7 @@ class MetaTrainer:
                     critic = self.subtask_critics.critics[i]
 
                     loss_dict, timesteps, update_time, new_policy, gradients, _ = (
-                        policy.learn(critic, batch_i, "local")
+                        policy.learn(critic, batch_i, None, "local")
                     )
 
                     # Logging and bookkeeping
@@ -180,6 +180,10 @@ class MetaTrainer:
 
                         if prefix == "local":
                             critic = self.subtask_critics.critics[i]
+                            # given gradients dict from previous iteration, compute momentum
+                            # make sure clone and detach the gradients
+                            momentum = self.get_momentum(gradient_dict, i, j)
+
                             (
                                 loss_dict,
                                 timesteps,
@@ -187,7 +191,7 @@ class MetaTrainer:
                                 new_policy,
                                 gradients,
                                 _,
-                            ) = policy.learn(critic, option_batch, prefix)
+                            ) = policy.learn(critic, option_batch, momentum, prefix)
                             loss_dict[
                                 f"{policy.name}-{prefix}/analytics/task_rewards"
                             ] = np.mean(task_batch["rewards"])
@@ -201,7 +205,7 @@ class MetaTrainer:
                                 new_policy,
                                 gradients,
                                 mean_value,
-                            ) = policy.learn(critic, task_batch, prefix)
+                            ) = policy.learn(critic, task_batch, None, prefix)
 
                             value_list.append(mean_value)
 
@@ -227,11 +231,16 @@ class MetaTrainer:
                     gradients = gradient_dict[f"{self.num_local_updates - 1}_{i}"]
                     for j in reversed(range(self.num_local_updates - 1)):
                         iter_idx = f"{j}_{i}"
-                        Hv = grad(
-                            gradient_dict[iter_idx],
-                            policy_dict[iter_idx].actor.parameters(),
-                            grad_outputs=gradients,
-                        )
+                        try:
+                            Hv = grad(
+                                gradient_dict[iter_idx],
+                                policy_dict[iter_idx].actor.parameters(),
+                                grad_outputs=gradients,
+                            )
+                        except:
+                            print(
+                                f"Error in computing Hv for {iter_idx} with gradients {len(gradients)} and {len(gradient_dict[iter_idx])} gradients."
+                            )
                         gradients = tuple(
                             g - self.policy.igtpo_actor_lr * h
                             for g, h in zip(gradients, Hv)
@@ -239,18 +248,20 @@ class MetaTrainer:
                     meta_gradients.append(gradients)
 
                 # Average across vectors
-                meta_gradients_transposed = list(
-                    zip(*meta_gradients)
-                )  # Group by parameter
-                averaged_meta_gradients = tuple(
-                    torch.mean(torch.stack(grads_per_param), dim=0)
-                    for grads_per_param in meta_gradients_transposed
-                )
+                # meta_gradients_transposed = list(
+                #     zip(*meta_gradients)
+                # )  # Group by parameter
+                # averaged_meta_gradients = tuple(
+                #     torch.mean(torch.stack(grads_per_param), dim=0)
+                #     for grads_per_param in meta_gradients_transposed
+                # )
+
+                gradients = meta_gradients[argmax_idx]
 
                 # === TRPO update === #
                 backtrack_iter, backtrack_success = self.policy.trpo_learn(
                     states=meta_batch["states"],
-                    grads=averaged_meta_gradients,
+                    grads=gradients,
                 )
 
                 # === Update progress ===
@@ -403,6 +414,24 @@ class MetaTrainer:
         }
 
         return eval_dict, image_array
+
+    def get_momentum(self, gradient_dict, i, j):
+        momentum = None
+        for iter_num in range(j):
+            g = gradient_dict[f"{iter_num}_{i}"]
+            decay = 0.9 ** (j - iter_num)
+            if momentum is None:
+                momentum = tuple(decay * x.clone().detach() for x in g)
+            else:
+                momentum = tuple(
+                    decay * (m + x.clone().detach()) for m, x in zip(momentum, g)
+                )
+
+        if momentum is None:
+            raise ValueError(
+                "Error: Momentum is None, check the gradient_dict and indices."
+            )
+        return momentum
 
     def intrinsic_rewards(self, batch, eigenvector):
         states = batch["states"]

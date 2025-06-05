@@ -333,6 +333,13 @@ class FourRooms(MultiGridEnv):
 
         return observations, rewards, terminated, truncated, info
 
+    def _reward(self, current_agent, rewards, reward=1):
+        """
+        Compute the reward to be given upon success
+        """
+        rewards[current_agent] += reward
+        return rewards
+
     def get_obs(
         self,
     ):

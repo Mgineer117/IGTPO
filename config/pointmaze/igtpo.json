@@ -8,6 +8,5 @@
     "num_options": 4,
     "num_minibatch": 4,
     "minibatch_size": 2048,
-    "batch_size": 8192,
-    "gamma": 0.99
+    "batch_size": 8192
 }

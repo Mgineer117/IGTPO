@@ -69,13 +69,13 @@ def get_args():
         "--extractor-lr", type=float, default=1e-4, help="Base learning rate."
     )
     parser.add_argument(
-        "--igtpo-actor-lr", type=float, default=1e-2, help="Base learning rate."
+        "--igtpo-actor-lr", type=float, default=1e-3, help="Base learning rate."
     )
     parser.add_argument(
         "--actor-lr", type=float, default=1e-4, help="Base learning rate."
     )
     parser.add_argument(
-        "--critic-lr", type=float, default=1e-4, help="Base learning rate."
+        "--critic-lr", type=float, default=3e-4, help="Base learning rate."
     )
     parser.add_argument(
         "--eps-clip", type=float, default=None, help="Base learning rate."
@@ -130,7 +130,7 @@ def get_args():
     parser.add_argument(
         "--entropy-scaler", type=float, default=1e-3, help="Base learning rate."
     )
-    parser.add_argument("--gamma", type=float, default=None, help="Base learning rate.")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Base learning rate.")
     parser.add_argument(
         "--load-pretrained-model",
         action="store_true",

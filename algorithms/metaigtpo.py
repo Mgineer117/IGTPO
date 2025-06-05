@@ -16,9 +16,9 @@ from utils.rl import get_extractor, get_vector
 from utils.sampler import OnlineSampler
 
 
-class IGTPO_Algorithm(nn.Module):
+class MetaIGTPO_Algorithm(nn.Module):
     def __init__(self, env, logger, writer, args):
-        super(IGTPO_Algorithm, self).__init__()
+        super(MetaIGTPO_Algorithm, self).__init__()
 
         # === Parameter saving === #
         self.env = env
@@ -26,6 +26,9 @@ class IGTPO_Algorithm(nn.Module):
         self.writer = writer
         self.args = args
 
+        self.args.igtpo_nupdates = int(args.timesteps * 0.9) // (
+            args.batch_size * args.num_local_updates * args.num_options
+        )
         self.args.igtpo_nupdates = int(args.timesteps * 0.9) // (
             args.batch_size * args.num_local_updates * args.num_options
         )
@@ -50,7 +53,7 @@ class IGTPO_Algorithm(nn.Module):
 
         # === Meta-train using options === #'
         self.define_meta_policy()
-        trainer = IGTPOTrainer(
+        trainer = MetaIGTPOTrainer(
             env=self.env,
             policy=self.policy,
             extractor=self.extractor,
