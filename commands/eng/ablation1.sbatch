@@ -3,7 +3,7 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=8
+#SBATCH --ntasks=7
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:2
 #SBATCH --time=2-00:00:00
@@ -24,11 +24,9 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igt
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --num-local-updates 15 & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --num-local-updates 20 & 
 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --entropy-scaler 0.0 & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --entropy-scaler 0.1 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --entropy-scaler 0.01 &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --entropy-scaler 0.0001 &  
-
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.1 & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.01 & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.0001 & 
 
 # === Wait for all background jobs to finish ===
 wait

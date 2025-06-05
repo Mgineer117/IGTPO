@@ -3,9 +3,9 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=IllinoisComputes-GPU
 #SBATCH --nodes=1
-#SBATCH --ntasks=10
+#SBATCH --ntasks=7
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:3
+#SBATCH --gres=gpu:2
 #SBATCH --time=3-00:00:00
 #SBATCH --output=igtpo-ablation.o%j
 #SBATCH --mail-type=FAIL
@@ -19,18 +19,14 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===  
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.1 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.01 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.0001 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 1024 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 2048 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 4096 & 
 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 1024 & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 2048 & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --batch-size 4096 & 
-
-CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.05 &
-CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.07 &
-CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.09 &
-CUDA_VISIBLE_DEVICES=2 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.13 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.05 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.07 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.09 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-medium --project igtpo-ablation --algo-name igtpo --target-kl 0.13 &
 
 # === Wait for all background jobs to finish ===
 wait
