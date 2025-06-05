@@ -2,10 +2,10 @@ nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project
 sleep 30
 nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --target-kl 0.05 &
 sleep 30
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --target-kl 0.07 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 1 --project igtpo-grid --target-kl 0.07 &
 sleep 30
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 0 --project igtpo-grid --target-kl 0.09 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 1 --project igtpo-grid --target-kl 0.09 &
 sleep 30
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 1 --project igtpo-grid --igtpo-actor-lr 0.0001 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 2 --project igtpo-grid --igtpo-actor-lr 0.0001 &
 sleep 30
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 1 --project igtpo-grid --igtpo-actor-lr 0.01 &
+nohup python3 main.py --algo-name igtpo --env-name maze-v0 --gpu-idx 2 --project igtpo-grid --igtpo-actor-lr 0.01 &
