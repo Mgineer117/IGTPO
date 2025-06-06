@@ -1,3 +1,4 @@
+import random
 import time
 from datetime import date
 from math import ceil, floor
@@ -6,8 +7,6 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-
-from utils.functions import temp_seed
 
 today = date.today()
 
@@ -82,6 +81,20 @@ class Base:
 
         return num_worker_per_round, rounds
 
+    def temp_seed(self, seed, pid):
+        """
+        This saves current seed info and calls after stochastic action selection.
+        -------------------------------------------------------------------------
+        This is to introduce the stochacity in each multiprocessor.
+        Without this, the samples from each multiprocessor will be same since the seed was fixed
+        """
+        rand_int = random.randint(0, 1_000_000)  # create a random integer
+
+        # Set the temporary seed
+        torch.manual_seed(seed + pid + rand_int)
+        np.random.seed(seed + pid + rand_int)
+        random.seed(seed + pid + rand_int)
+
 
 class OnlineSampler(Base):
     def __init__(
@@ -144,78 +157,60 @@ class OnlineSampler(Base):
         deterministic: bool = False,
         random_init_pos: bool = False,
     ):
-        """
-        All sampling and saving to the memory is done in numpy.
-        return: dict() with elements in numpy
-        """
         t_start = time.time()
 
-        # Iterate over rounds
         device = policy.device
         policy.to_device(torch.device("cpu"))
 
         queue = self.queue
         worker_idx = 0
-        for round_number in range(self.rounds):
-            processes = []
-            for i in range(self.num_workers_per_round[round_number]):
-                if worker_idx == self.total_num_worker - 1:
-                    # Main thread process
-                    memory = self.collect_trajectory(
-                        worker_idx,
-                        None,
-                        env,
-                        policy,
-                        seed=seed,
-                        deterministic=deterministic,
-                        random_init_pos=random_init_pos,
-                    )
-                else:
-                    # Sub-thread process
-                    worker_args = (
-                        worker_idx,
-                        queue,
-                        env,
-                        policy,
-                        seed,
-                        deterministic,
-                        random_init_pos,
-                    )
-                    p = mp.Process(target=self.collect_trajectory, args=worker_args)
-                    processes.append(p)
-                    p.start()
+        processes = []
 
+        for round_number in range(self.rounds):
+            for i in range(self.num_workers_per_round[round_number]):
+                worker_args = (
+                    worker_idx,
+                    queue,
+                    env,
+                    policy,
+                    seed,
+                    deterministic,
+                    random_init_pos,
+                )
+                p = mp.Process(target=self.collect_trajectory, args=worker_args)
+                processes.append(p)
+                p.start()
                 worker_idx += 1
 
-            # Ensure all workers finish before collecting data
-            for p in processes:
+        for p in processes:
+            p.join(timeout=120)
+            if p.is_alive():
+                print(f"Process {p.pid} is stuck, terminating.")
+                p.terminate()
                 p.join()
 
-        # Include worker memories in one list
         worker_memories = [None] * worker_idx
-        while not queue.empty():
+        collected = 0
+        while collected < worker_idx:
             try:
-                pid, worker_memory = queue.get(timeout=2)
+                pid, worker_memory = queue.get(timeout=10)
                 worker_memories[pid] = worker_memory
+                collected += 1
             except Exception as e:
                 print(f"Queue retrieval error: {e}")
-
-        worker_memories[-1] = memory  # Add main thread memory
+                break
 
         memory = {}
-        for worker_memory in worker_memories:
-            if worker_memory is None:
-                raise ValueError("worker memory shouldn't be None")
+        for wm in worker_memories:
+            if wm is None:
+                raise ValueError("Some worker memory is None")
 
-            for key in worker_memory:
+            for key in wm:
                 if key in memory:
-                    memory[key] = np.concatenate(
-                        (memory[key], worker_memory[key]), axis=0
-                    )
+                    memory[key] = np.concatenate((memory[key], wm[key]), axis=0)
                 else:
-                    memory[key] = worker_memory[key]
+                    memory[key] = wm[key]
 
-        # Truncate to batch size
         for k, v in memory.items():
             memory[k] = v[: self.batch_size]
 
@@ -234,15 +229,13 @@ class OnlineSampler(Base):
         deterministic: bool = False,
         random_init_pos: bool = False,
     ):
-        # estimate the batch size to hava a large batch
-        data = self.get_reset_data(batch_size=self.thread_batch_size)  # allocate memory
+        data = self.get_reset_data(batch_size=self.thread_batch_size)
 
         if queue is not None:
-            temp_seed(seed, pid)
+            self.temp_seed(seed, pid)
 
         current_step = 0
         while current_step < self.min_batch_for_worker:
-            # env initialization
             options = {"random_init_pos": random_init_pos}
             state, _ = env.reset(seed=seed, options=options)
 
@@ -251,11 +244,9 @@ class OnlineSampler(Base):
                     a, metaData = policy(state, deterministic=deterministic)
                     a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
-                    # env stepping
                     next_state, rew, term, trunc, infos = env.step(a)
                     done = term or trunc
 
-                # saving the data
                 data["states"][current_step + t] = state
                 data["next_states"][current_step + t] = next_state
                 data["actions"][current_step + t] = a
@@ -269,7 +260,6 @@ class OnlineSampler(Base):
                 )
 
                 if done:
-                    # clear log
                     current_step += t + 1
                     break
 
@@ -280,8 +270,6 @@ class OnlineSampler(Base):
 
         if queue is not None:
             queue.put([pid, data])
-        else:
-            return data
 
 
 class HLSampler(OnlineSampler):
@@ -334,7 +322,7 @@ class HLSampler(OnlineSampler):
         data = self.get_reset_data(batch_size=self.thread_batch_size)  # allocate memory
 
         if queue is not None:
-            temp_seed(seed, pid)
+            self.temp_seed(seed, pid)
 
         current_step = 0
         while current_step < self.min_batch_for_worker:

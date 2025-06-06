@@ -204,21 +204,6 @@ def seed_all(seed=0):
     torch.backends.cudnn.benchmark = False
 
 
-def temp_seed(seed, pid):
-    """
-    This saves current seed info and calls after stochastic action selection.
-    -------------------------------------------------------------------------
-    This is to introduce the stochacity in each multiprocessor.
-    Without this, the samples from each multiprocessor will be same since the seed was fixed
-    """
-    rand_int = random.randint(0, 1_000_000)  # create a random integer
-
-    # Set the temporary seed
-    torch.manual_seed(seed + pid + rand_int)
-    np.random.seed(seed + pid + rand_int)
-    random.seed(seed + pid + rand_int)
-
-
 def concat_csv_columnwise_and_delete(folder_path, output_file="output.csv"):
     csv_files = [f for f in os.listdir(folder_path) if f.endswith(".csv")]
 
