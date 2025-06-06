@@ -302,9 +302,7 @@ class IGTPO_Learner(Base):
         entropy_loss = self.entropy_scaler * entropy.mean()
 
         # Compute clip fraction (for logging)
-        clip_fraction = torch.mean(
-            (torch.abs(ratios - 1) > self.eps_clip).float()
-        ).item()
+        clip_fraction = torch.mean((torch.abs(ratios - 1) > self.eps_clip).float())
 
         # Check if KL divergence exceeds target KL for early stopping
         kl_div = torch.mean(mb_old_logprobs - logprobs)
