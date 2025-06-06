@@ -88,12 +88,12 @@ class Base:
         This is to introduce the stochacity in each multiprocessor.
         Without this, the samples from each multiprocessor will be same since the seed was fixed
         """
-        rand_int = random.randint(0, 1_000_000)  # create a random integer
+        rand_int = 0  # random.randint(0, 1_000_000)  # create a random integer
 
         # Set the temporary seed
         torch.manual_seed(seed + pid + rand_int)
-        np.random.seed(seed + pid + rand_int)
-        random.seed(seed + pid + rand_int)
+        # np.random.seed(seed + pid + rand_int)
+        # random.seed(seed + pid + rand_int)
 
 
 class OnlineSampler(Base):
@@ -103,7 +103,6 @@ class OnlineSampler(Base):
         action_dim: int,
         episode_len: int,
         batch_size: int,
-        min_batch_for_worker: int = 1024,
         cpu_preserve_rate: float = 0.95,
         num_cores: int | None = None,
         verbose: bool = True,
@@ -116,6 +115,9 @@ class OnlineSampler(Base):
         the task is assigned.
         This assigned appropriate parameters assuming one worker work with 2 trajectories.
         """
+        # assign each worker to perform two trajectories
+        min_batch_for_worker = 2 * episode_len
+
         super().__init__(
             state_dim=state_dim,
             action_dim=action_dim,
