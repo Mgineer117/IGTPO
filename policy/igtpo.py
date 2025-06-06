@@ -256,6 +256,8 @@ class IGTPO_Learner(Base):
             f"{self.name}-{prefix}/loss/entropy_loss": entropy_loss.item(),
             f"{self.name}-{prefix}/grad/actor": actor_grad_norm.item(),
             f"{self.name}-{prefix}/analytics/avg_rewards": torch.mean(rewards).item(),
+            f"{self.name}-{prefix}/analytics/clip_fraction": clip_fraction.item(),
+            f"{self.name}-{prefix}/analytics/kl_div": kl_div.item(),
         }
         norm_dict = self.compute_weight_norm(
             [self.actor],

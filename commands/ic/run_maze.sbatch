@@ -19,12 +19,12 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name ppo & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name trpo & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name psne & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name drndppo & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name eigenoption & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name igtpo & 
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name ppo & 
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name trpo & 
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name psne & 
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name drndppo & 
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name eigenoption & 
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name igtpo & 
 
 # === Wait for all background jobs to finish ===
 wait
