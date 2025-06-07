@@ -222,8 +222,8 @@ class IGTPOTrainer:
                                 mean_value,
                             ) = policy.learn(critic, task_batch, None, prefix)
 
-                            value_list.append(np.mean(task_batch["rewards"]))
-                            # value_list.append(mean_value)
+                            # value_list.append(np.mean(task_batch["rewards"]))
+                            value_list.append(mean_value)
 
                         # Logging and bookkeeping
                         loss_dict.update(task_loss_dict)
@@ -240,6 +240,7 @@ class IGTPOTrainer:
                 # === Meta-gradient computation ===
                 values = np.array(value_list)
                 argmax_idx = np.argmax(values)
+                # print(values, argmax_idx)
                 most_contributing_index = self.num_vector_names[argmax_idx]
 
                 meta_gradients = []
@@ -264,15 +265,15 @@ class IGTPOTrainer:
                     meta_gradients.append(gradients)
 
                 # Average across vectors
-                # meta_gradients_transposed = list(
-                #     zip(*meta_gradients)
-                # )  # Group by parameter
-                # gradients = tuple(
-                #     torch.mean(torch.stack(grads_per_param), dim=0)
-                #     for grads_per_param in meta_gradients_transposed
-                # )
+                meta_gradients_transposed = list(
+                    zip(*meta_gradients)
+                )  # Group by parameter
+                gradients = tuple(
+                    torch.mean(torch.stack(grads_per_param), dim=0)
+                    for grads_per_param in meta_gradients_transposed
+                )
 
-                gradients = meta_gradients[argmax_idx]
+                # gradients = meta_gradients[argmax_idx]
 
                 # === TRPO update === #
                 backtrack_iter, backtrack_success = self.policy.trpo_learn(
