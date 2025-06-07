@@ -3,8 +3,8 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=csl
 #SBATCH --nodes=1
-#SBATCH --ntasks=6
-#SBATCH --cpus-per-task=4
+#SBATCH --ntasks=3
+#SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
 #SBATCH --time=7-00:00:00
 #SBATCH --output=igtpo-ablation.o%j
@@ -19,11 +19,8 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name ppo --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name trpo --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name psne --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name drndppo --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name eigenoption --num-runs 10 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name ninerooms-v0 --project igtpo --algo-name igtpo --num-runs 10 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name igtpo --num-runs 10 & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name igtpo --num-runs 10 & 
 
 # === Wait for all background jobs to finish ===
