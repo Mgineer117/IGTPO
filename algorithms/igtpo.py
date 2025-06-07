@@ -41,11 +41,18 @@ class IGTPO_Algorithm(nn.Module):
         self.define_eigenvectors()
 
         # === Sampler === #
-        sampler = OnlineSampler(
+        outer_sampler = OnlineSampler(
             state_dim=self.args.state_dim,
             action_dim=self.args.action_dim,
             episode_len=self.env.max_steps,
             batch_size=self.args.batch_size,
+        )
+        inner_sampler = OnlineSampler(
+            state_dim=self.args.state_dim,
+            action_dim=self.args.action_dim,
+            episode_len=self.env.max_steps,
+            batch_size=int(self.args.batch_size / 2),
+            verbose=False,
         )
 
         # === Meta-train using options === #'
@@ -58,7 +65,8 @@ class IGTPO_Algorithm(nn.Module):
             task_critics=self.task_critics,
             subtask_critics=self.subtask_critics,
             eigenvectors=self.eigenvectors,
-            sampler=sampler,
+            outer_sampler=outer_sampler,
+            inner_sampler=inner_sampler,
             logger=self.logger,
             writer=self.writer,
             num_local_updates=self.args.num_local_updates,
@@ -69,6 +77,7 @@ class IGTPO_Algorithm(nn.Module):
             marker=self.args.marker,
             rendering=self.args.rendering,
             seed=self.args.seed,
+            args=self.args,
         )
         final_steps = trainer.train()
         self.current_timesteps += final_steps

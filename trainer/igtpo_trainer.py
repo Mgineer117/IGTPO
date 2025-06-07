@@ -14,6 +14,8 @@ from tqdm import tqdm
 
 from log.wandb_logger import WandbLogger
 from policy.base import Base
+from policy.igtpo import IGTPO_Learner
+from policy.layers.ppo_networks import PPO_Actor
 from utils.rl import estimate_advantages
 from utils.sampler import OnlineSampler
 
@@ -40,7 +42,8 @@ class IGTPOTrainer:
         task_critics: nn.Module,
         subtask_critics: nn.Module,
         eigenvectors: torch.Tensor,
-        sampler: OnlineSampler,
+        outer_sampler: OnlineSampler,
+        inner_sampler: OnlineSampler,
         logger: WandbLogger,
         writer: SummaryWriter,
         num_local_updates: int = 10,
@@ -51,6 +54,7 @@ class IGTPOTrainer:
         marker: int = 10,
         rendering: bool = False,
         seed: int = 0,
+        args=None,
     ) -> None:
         self.env = env
         self.policy = policy
@@ -63,7 +67,8 @@ class IGTPOTrainer:
         self.num_vectors = eigenvectors.shape[0]
         self.num_vector_names = [f"{i}" for i in range(self.num_vectors)]
 
-        self.sampler = sampler
+        self.outer_sampler = outer_sampler
+        self.inner_sampler = inner_sampler
         self.num_local_updates = num_local_updates
         self.eval_num = eval_num
 
@@ -85,6 +90,7 @@ class IGTPOTrainer:
 
         self.rendering = rendering
         self.seed = seed
+        self.args = args
 
     def train(self) -> dict[str, float]:
         start_time = time.time()
@@ -109,7 +115,7 @@ class IGTPOTrainer:
                 self.policy.train()
 
                 # === Initial Iteration ===
-                meta_batch, sample_time = self.sampler.collect_samples(
+                meta_batch, sample_time = self.inner_sampler.collect_samples(
                     env=self.env, policy=self.policy, seed=self.seed
                 )
                 meta_timesteps = meta_batch["rewards"].shape[0]
@@ -133,7 +139,7 @@ class IGTPOTrainer:
                     batch_i["rewards"] = self.intrinsic_rewards(
                         batch_i, self.eigenvectors[i]
                     )
-                    policy = deepcopy(self.policy)
+                    policy = self.copy_policy()
                     critic = self.subtask_critics.critics[i]
 
                     loss_dict, timesteps, update_time, new_policy, gradients, _ = (
@@ -161,9 +167,18 @@ class IGTPOTrainer:
                         prev_iter_idx = f"{j}_{i}"
                         policy = policy_dict[prev_iter_idx]
 
-                        task_batch, sample_time = self.sampler.collect_samples(
-                            env=self.env, policy=policy, seed=self.seed
-                        )
+                        if prefix == "local":
+                            task_batch, sample_time = (
+                                self.inner_sampler.collect_samples(
+                                    env=self.env, policy=policy, seed=self.seed
+                                )
+                            )
+                        else:
+                            task_batch, sample_time = (
+                                self.outer_sampler.collect_samples(
+                                    env=self.env, policy=policy, seed=self.seed
+                                )
+                            )
 
                         option_batch = deepcopy(task_batch)
                         option_batch["rewards"] = self.intrinsic_rewards(
@@ -415,6 +430,30 @@ class IGTPOTrainer:
         }
 
         return eval_dict, image_array
+
+    def copy_policy(self):
+        actor = PPO_Actor(
+            input_dim=self.args.state_dim,
+            hidden_dim=self.args.actor_fc_dim,
+            action_dim=self.args.action_dim,
+            is_discrete=self.args.is_discrete,
+        )
+        policy = IGTPO_Learner(
+            actor=actor,
+            nupdates=self.args.igtpo_nupdates,
+            igtpo_actor_lr=self.args.igtpo_actor_lr,
+            batch_size=self.args.batch_size,
+            eps_clip=self.args.eps_clip,
+            entropy_scaler=self.args.entropy_scaler,
+            target_kl=self.args.target_kl,
+            gamma=self.args.gamma,
+            gae=self.args.gae,
+            K=self.args.K_epochs,
+            device=self.args.device,
+        )
+
+        policy.load_state_dict(self.policy.state_dict())
+        return policy
 
     def get_momentum(self, gradient_dict, i, j):
         momentum = None
