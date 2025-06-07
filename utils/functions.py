@@ -14,6 +14,21 @@ from log.wandb_logger import WandbLogger
 from utils.wrapper import FetchWrapper, ObsNormWrapper, PointMazeWrapper
 
 
+def temp_seed(seed, pid):
+    """
+    This saves current seed info and calls after stochastic action selection.
+    -------------------------------------------------------------------------
+    This is to introduce the stochacity in each multiprocessor.
+    Without this, the samples from each multiprocessor will be same since the seed was fixed
+    """
+    rand_int = random.randint(0, 1_000_000)  # create a random integer
+
+    # Set the temporary seed
+    torch.manual_seed(seed + pid + rand_int)
+    np.random.seed(seed + pid + rand_int)
+    random.seed(seed + pid + rand_int)
+
+
 def call_env(args):
     """
     Call the environment based on the given name.
