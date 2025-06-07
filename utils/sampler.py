@@ -92,8 +92,8 @@ class Base:
 
         # Set the temporary seed
         torch.manual_seed(seed + pid + rand_int)
-        # np.random.seed(seed + pid + rand_int)
-        # random.seed(seed + pid + rand_int)
+        np.random.seed(seed + pid + rand_int)
+        random.seed(seed + pid + rand_int)
 
 
 class OnlineSampler(Base):
