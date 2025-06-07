@@ -172,32 +172,18 @@ class OnlineSampler(Base):
             round_worker_start_idx = worker_idx  # remember start of this round
 
             for i in range(n_workers_this_round):
-                if worker_idx == self.total_num_worker - 1:
-                    # Main thread worker
-                    memory = self.collect_trajectory(
-                        worker_idx,
-                        None,
-                        env,
-                        policy,
-                        seed=seed,
-                        deterministic=deterministic,
-                        random_init_pos=random_init_pos,
-                    )
-                    worker_memories[worker_idx] = memory
-                else:
-                    args = (
-                        worker_idx,
-                        queue,
-                        env,
-                        policy,
-                        seed,
-                        deterministic,
-                        random_init_pos,
-                    )
-                    p = mp.Process(target=self.collect_trajectory, args=args)
-                    processes.append(p)
-                    p.start()
-
+                args = (
+                    worker_idx,
+                    queue,
+                    env,
+                    policy,
+                    seed,
+                    deterministic,
+                    random_init_pos,
+                )
+                p = mp.Process(target=self.collect_trajectory, args=args)
+                processes.append(p)
+                p.start()
                 worker_idx += 1
 
             # ✅ Wait for just the subprocess workers of this round
