@@ -208,6 +208,7 @@ class IGTPOTrainer:
                             ) = policy.learn(critic, task_batch, None, prefix)
 
                             value_list.append(np.mean(task_batch["rewards"]))
+                            # value_list.append(mean_value)
 
                         # Logging and bookkeeping
                         loss_dict.update(task_loss_dict)
@@ -251,7 +252,7 @@ class IGTPOTrainer:
                 # meta_gradients_transposed = list(
                 #     zip(*meta_gradients)
                 # )  # Group by parameter
-                # averaged_meta_gradients = tuple(
+                # gradients = tuple(
                 #     torch.mean(torch.stack(grads_per_param), dim=0)
                 #     for grads_per_param in meta_gradients_transposed
                 # )
