@@ -207,7 +207,7 @@ class IGTPOTrainer:
                                 mean_value,
                             ) = policy.learn(critic, task_batch, None, prefix)
 
-                            value_list.append(mean_value)
+                            value_list.append(np.mean(task_batch["rewards"]))
 
                         # Logging and bookkeeping
                         loss_dict.update(task_loss_dict)
