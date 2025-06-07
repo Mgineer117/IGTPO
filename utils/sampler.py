@@ -90,7 +90,6 @@ class OnlineSampler(Base):
         action_dim: int,
         episode_len: int,
         batch_size: int,
-        min_batch_for_worker: int = 1024,
         cpu_preserve_rate: float = 0.95,
         num_cores: int | None = None,
         verbose: bool = True,
