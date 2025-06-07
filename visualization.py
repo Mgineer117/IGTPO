@@ -5,14 +5,19 @@ import torch
 # Hyperparameters
 alpha = 0.03  # pseudo-loss learning rate
 beta = 0.1  # meta learning rate
-num_steps = 15
+num_steps = 20
 meta_steps = 200
 tol = 1e-1
+
+pseudo_optima = (0, -2)
 
 
 # Loss functions
 def pseudo_loss_fn(x):
-    return torch.norm(x[0]) ** 2 + torch.norm(x[1] + 4) ** 2
+    return (
+        torch.norm(x[0] - pseudo_optima[0]) ** 2
+        + torch.norm(x[1] - pseudo_optima[1]) ** 2
+    )
 
 
 def loss_fn(x):
@@ -50,7 +55,7 @@ def compute_meta_gradient(theta_init):
 
 
 # Initialize meta optimization
-theta0 = torch.tensor([-5.0, 0.0])
+theta0 = torch.tensor([6.0, -6.0])
 meta_trajectory = [theta0.numpy()]
 meta_grads = []
 local_grads = []
@@ -149,8 +154,8 @@ for i in range(meta_steps):
 # Points
 # Optimal pseudo-loss point (distinct yellow with black border)
 plt.scatter(
-    0,
-    -4,
+    pseudo_optima[0],
+    pseudo_optima[1],
     s=550,
     color="red",
     edgecolors="black",

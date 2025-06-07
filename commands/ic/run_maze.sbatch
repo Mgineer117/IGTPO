@@ -3,7 +3,7 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=IllinoisComputes-GPU
 #SBATCH --nodes=1
-#SBATCH --ntasks=6
+#SBATCH --ntasks=5
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:2
 #SBATCH --time=3-00:00:00
@@ -19,12 +19,12 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===
-CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name ppo & 
-CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name trpo & 
-CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name psne & 
-CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name drndppo & 
-CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name eigenoption & 
-CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name igtpo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name ppo --num-runs 5 --seed 84 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name trpo --num-runs 5 --seed 84 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name psne --num-runs 5 --seed 84 & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name drndppo --num-runs 5 --seed 84 & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name eigenoption --num-runs 5 --seed 84 & 
+# CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo --algo-name igtpo & 
 
 # === Wait for all background jobs to finish ===
 wait
