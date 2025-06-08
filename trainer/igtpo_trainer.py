@@ -217,11 +217,8 @@ class IGTPOTrainer:
                                 gradients,
                                 mean_value,
                             ) = policy.learn(critic, task_batch, None, prefix)
-                            print(int(self.num_vector_names[i]), subtask_values)
 
-                        subtask_values[int(self.num_vector_names[i])] += task_batch[
-                            "rewards"
-                        ].mean()
+                        subtask_values[i] += task_batch["rewards"].mean()
 
                         # Logging and bookkeeping
                         loss_dict.update(task_loss_dict)
@@ -335,6 +332,11 @@ class IGTPOTrainer:
                         del self.subtask_critics.critics[least_contributing_index]
                         del self.subtask_critics.optimizers[least_contributing_index]
                         del self.num_vector_names[least_contributing_index]
+
+                        subtask_values = np.delete(
+                            subtask_values, least_contributing_index
+                        )
+                        print(subtask_values)
 
                         # Update the number of vectors
                         self.num_vectors = self.eigenvectors.shape[0]
