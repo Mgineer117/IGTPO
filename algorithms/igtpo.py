@@ -52,7 +52,6 @@ class IGTPO_Algorithm(nn.Module):
             action_dim=self.args.action_dim,
             episode_len=self.env.max_steps,
             batch_size=int(self.args.batch_size / 2),
-            verbose=False,
         )
 
         # === Meta-train using options === #'
@@ -71,7 +70,7 @@ class IGTPO_Algorithm(nn.Module):
             writer=self.writer,
             num_local_updates=self.args.num_local_updates,
             init_timesteps=self.current_timesteps,
-            timesteps=int(0.9 * self.args.timesteps),
+            timesteps=self.args.timesteps,
             log_interval=self.args.log_interval,
             eval_num=self.args.eval_num,
             marker=self.args.marker,
@@ -82,29 +81,29 @@ class IGTPO_Algorithm(nn.Module):
         final_steps = trainer.train()
         self.current_timesteps += final_steps
 
-        # === Fine-tune === #
-        sampler = OnlineSampler(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            episode_len=self.env.max_steps,
-            batch_size=int(self.args.num_minibatch * self.args.minibatch_size),
-        )
+        # # === Fine-tune === #
+        # sampler = OnlineSampler(
+        #     state_dim=self.args.state_dim,
+        #     action_dim=self.args.action_dim,
+        #     episode_len=self.env.max_steps,
+        #     batch_size=int(self.args.num_minibatch * self.args.minibatch_size),
+        # )
 
-        self.define_ppo_policy()
-        trainer = Trainer(
-            env=self.env,
-            policy=self.policy,
-            sampler=sampler,
-            logger=self.logger,
-            writer=self.writer,
-            init_timesteps=self.current_timesteps,
-            timesteps=int(0.1 * self.args.timesteps),
-            log_interval=self.args.log_interval,
-            eval_num=self.args.eval_num,
-            seed=self.args.seed,
-        )
+        # self.define_ppo_policy()
+        # trainer = Trainer(
+        #     env=self.env,
+        #     policy=self.policy,
+        #     sampler=sampler,
+        #     logger=self.logger,
+        #     writer=self.writer,
+        #     init_timesteps=self.current_timesteps,
+        #     timesteps=int(0.1 * self.args.timesteps),
+        #     log_interval=self.args.log_interval,
+        #     eval_num=self.args.eval_num,
+        #     seed=self.args.seed,
+        # )
 
-        trainer.train()
+        # trainer.train()
 
     def define_extractor(self):
         if not os.path.exists("model"):

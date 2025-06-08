@@ -102,6 +102,7 @@ class IGTPOTrainer:
         eval_idx = 0
         prune_idx = 0
         trim_idx = int(self.timesteps / 2) / self.trim_interval
+        subtask_values = np.array([0.0 for _ in range(self.num_vectors)])
 
         with tqdm(
             total=self.timesteps + self.init_timesteps,
@@ -139,7 +140,7 @@ class IGTPOTrainer:
                     batch_i["rewards"] = self.intrinsic_rewards(
                         batch_i, self.eigenvectors[i]
                     )
-                    policy = self.copy_policy()
+                    policy = deepcopy(self.policy)
                     critic = self.subtask_critics.critics[i]
 
                     loss_dict, timesteps, update_time, new_policy, gradients, _ = (
@@ -160,7 +161,6 @@ class IGTPOTrainer:
                     policy_dict[iter_idx] = new_policy
 
                 # === Subsequent Iterations ===
-                value_list = []
                 for j in range(1, self.num_local_updates):
                     for i in range(self.num_vectors):
                         prefix = "local" if j != self.num_local_updates - 1 else "meta"
@@ -195,10 +195,7 @@ class IGTPOTrainer:
 
                         if prefix == "local":
                             critic = self.subtask_critics.critics[i]
-                            # given gradients dict from previous iteration, compute momentum
-                            # make sure clone and detach the gradients
                             momentum = self.get_momentum(gradient_dict, i, j)
-
                             (
                                 loss_dict,
                                 timesteps,
@@ -210,7 +207,6 @@ class IGTPOTrainer:
                             loss_dict[
                                 f"{policy.name}-{prefix}/analytics/task_rewards"
                             ] = np.mean(task_batch["rewards"])
-
                         else:
                             critic = self.task_critics.critics[i]
                             (
@@ -221,9 +217,11 @@ class IGTPOTrainer:
                                 gradients,
                                 mean_value,
                             ) = policy.learn(critic, task_batch, None, prefix)
+                            print(int(self.num_vector_names[i]), subtask_values)
 
-                            # value_list.append(np.mean(task_batch["rewards"]))
-                            value_list.append(mean_value)
+                        subtask_values[int(self.num_vector_names[i])] += task_batch[
+                            "rewards"
+                        ].mean()
 
                         # Logging and bookkeeping
                         loss_dict.update(task_loss_dict)
@@ -238,9 +236,7 @@ class IGTPOTrainer:
                         gradient_dict[prev_iter_idx] = gradients
 
                 # === Meta-gradient computation ===
-                values = np.array(value_list)
-                argmax_idx = np.argmax(values)
-                # print(values, argmax_idx)
+                argmax_idx = np.argmax(subtask_values)
                 most_contributing_index = self.num_vector_names[argmax_idx]
 
                 meta_gradients = []
@@ -248,16 +244,11 @@ class IGTPOTrainer:
                     gradients = gradient_dict[f"{self.num_local_updates - 1}_{i}"]
                     for j in reversed(range(self.num_local_updates - 1)):
                         iter_idx = f"{j}_{i}"
-                        try:
-                            Hv = grad(
-                                gradient_dict[iter_idx],
-                                policy_dict[iter_idx].actor.parameters(),
-                                grad_outputs=gradients,
-                            )
-                        except:
-                            print(
-                                f"Error in computing Hv for {iter_idx} with gradients {len(gradients)} and {len(gradient_dict[iter_idx])} gradients."
-                            )
+                        Hv = grad(
+                            gradient_dict[iter_idx],
+                            policy_dict[iter_idx].actor.parameters(),
+                            grad_outputs=gradients,
+                        )
                         gradients = tuple(
                             g - self.policy.igtpo_actor_lr * h
                             for g, h in zip(gradients, Hv)
@@ -265,15 +256,15 @@ class IGTPOTrainer:
                     meta_gradients.append(gradients)
 
                 # Average across vectors
-                meta_gradients_transposed = list(
-                    zip(*meta_gradients)
-                )  # Group by parameter
-                gradients = tuple(
-                    torch.mean(torch.stack(grads_per_param), dim=0)
-                    for grads_per_param in meta_gradients_transposed
-                )
+                # meta_gradients_transposed = list(
+                #     zip(*meta_gradients)
+                # )  # Group by parameter
+                # gradients = tuple(
+                #     torch.mean(torch.stack(grads_per_param), dim=0)
+                #     for grads_per_param in meta_gradients_transposed
+                # )
 
-                # gradients = meta_gradients[argmax_idx]
+                gradients = meta_gradients[argmax_idx]
 
                 # === TRPO update === #
                 backtrack_iter, backtrack_success = self.policy.trpo_learn(
@@ -331,7 +322,7 @@ class IGTPOTrainer:
                     if current_step > self.prune_interval * (prune_idx + 1):
                         prune_idx += 1
 
-                        least_contributing_index = np.argmin(values)
+                        least_contributing_index = np.argmin(subtask_values)
                         self.eigenvectors = np.concatenate(
                             [
                                 self.eigenvectors[:least_contributing_index],
@@ -433,12 +424,15 @@ class IGTPOTrainer:
         return eval_dict, image_array
 
     def copy_policy(self):
+        # Construct a new actor
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
             action_dim=self.args.action_dim,
             is_discrete=self.args.is_discrete,
         )
+
+        # Construct a new policy (on CPU)
         policy = IGTPO_Learner(
             actor=actor,
             nupdates=self.args.igtpo_nupdates,
@@ -450,10 +444,18 @@ class IGTPOTrainer:
             gamma=self.args.gamma,
             gae=self.args.gae,
             K=self.args.K_epochs,
-            device=self.args.device,
+            device=torch.device("cpu"),  # explicitly force CPU
         )
 
-        policy.load_state_dict(self.policy.state_dict())
+        # Load a CPU copy of the state_dict
+        state_dict_cpu = {
+            k: v.detach().cpu().clone() for k, v in self.policy.state_dict().items()
+        }
+        policy.load_state_dict(state_dict_cpu)
+
+        # ✅ Ensure device match
+        policy = policy.to(self.args.device)
+
         return policy
 
     def get_momentum(self, gradient_dict, i, j):

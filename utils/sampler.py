@@ -207,15 +207,10 @@ class OnlineSampler(Base):
             if wm is None:
                 raise RuntimeError("One or more workers failed to return data.")
             for key, val in wm.items():
-                memory[key] = np.concatenate(
-                    (
-                        memory.get(
-                            key, np.empty((0,) + val.shape[1:], dtype=val.dtype)
-                        ),
-                        val,
-                    ),
-                    axis=0,
-                )
+                if key in memory:
+                    memory[key] = np.concatenate((memory[key], wm[key]), axis=0)
+                else:
+                    memory[key] = wm[key]
 
         # ✅ Truncate to desired batch size
         for k in memory:
