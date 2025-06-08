@@ -230,7 +230,8 @@ class IGTPO_Learner(Base):
 
         # 5. Compute gradients (example)
         gradients = torch.autograd.grad(loss, self.parameters(), create_graph=True)
-        gradients = self.clip_grad_norm(gradients, max_norm=0.5)
+        if prefix == "local":
+            gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
         # 6. Manual SGD update (structured, not flat)
         with torch.no_grad():
