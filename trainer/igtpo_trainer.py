@@ -144,7 +144,7 @@ class IGTPOTrainer:
                     critic = self.subtask_critics.critics[i]
 
                     loss_dict, timesteps, update_time, new_policy, gradients, _ = (
-                        policy.learn(critic, batch_i, None, "local")
+                        policy.learn(critic, batch_i, "local")
                     )
 
                     # Logging and bookkeeping
@@ -195,7 +195,6 @@ class IGTPOTrainer:
 
                         if prefix == "local":
                             critic = self.subtask_critics.critics[i]
-                            momentum = self.get_momentum(gradient_dict, i, j)
                             (
                                 loss_dict,
                                 timesteps,
@@ -203,7 +202,7 @@ class IGTPOTrainer:
                                 new_policy,
                                 gradients,
                                 _,
-                            ) = policy.learn(critic, option_batch, momentum, prefix)
+                            ) = policy.learn(critic, option_batch, prefix)
                             loss_dict[
                                 f"{policy.name}-{prefix}/analytics/task_rewards"
                             ] = np.mean(task_batch["rewards"])
@@ -216,7 +215,7 @@ class IGTPOTrainer:
                                 new_policy,
                                 gradients,
                                 mean_value,
-                            ) = policy.learn(critic, task_batch, None, prefix)
+                            ) = policy.learn(critic, task_batch, prefix)
 
                         subtask_values[i] += task_batch["rewards"].mean()
 
@@ -336,7 +335,6 @@ class IGTPOTrainer:
                         subtask_values = np.delete(
                             subtask_values, least_contributing_index
                         )
-                        print(subtask_values)
 
                         # Update the number of vectors
                         self.num_vectors = self.eigenvectors.shape[0]
@@ -459,24 +457,6 @@ class IGTPOTrainer:
         policy = policy.to(self.args.device)
 
         return policy
-
-    def get_momentum(self, gradient_dict, i, j):
-        momentum = None
-        for iter_num in range(j):
-            g = gradient_dict[f"{iter_num}_{i}"]
-            decay = 0.9 ** (j - iter_num)
-            if momentum is None:
-                momentum = tuple(decay * x.clone().detach() for x in g)
-            else:
-                momentum = tuple(
-                    decay * (m + x.clone().detach()) for m, x in zip(momentum, g)
-                )
-
-        if momentum is None:
-            raise ValueError(
-                "Error: Momentum is None, check the gradient_dict and indices."
-            )
-        return momentum
 
     def intrinsic_rewards(self, batch, eigenvector):
         states = batch["states"]

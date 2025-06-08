@@ -188,9 +188,7 @@ class IGTPO_Learner(Base):
 
         return i, success
 
-    def learn(
-        self, critic: nn.Module, batch: dict, momentum: torch.Tensor | None, prefix: str
-    ):
+    def learn(self, critic: nn.Module, batch: dict, prefix: str):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
@@ -230,9 +228,6 @@ class IGTPO_Learner(Base):
 
         # 5. Compute gradients (example)
         gradients = torch.autograd.grad(loss, self.parameters(), create_graph=True)
-        if momentum is not None:
-            # perform tuple addition
-            gradients = tuple(g + m for g, m in zip(gradients, momentum))
         gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
         # 6. Manual SGD update (structured, not flat)
