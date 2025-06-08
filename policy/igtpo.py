@@ -223,8 +223,8 @@ class IGTPO_Learner(Base):
         )
 
         # 4. Total loss
-        # if prefix == "meta":
-        #     entropy_loss *= 0.0  # No entropy loss for meta-IGTPO
+        if prefix == "meta":
+            entropy_loss *= 0.0  # No entropy loss for meta-IGTPO
 
         loss = actor_loss - entropy_loss
 
