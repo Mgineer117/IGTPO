@@ -193,6 +193,8 @@ class IGTPO_Learner(Base):
         self.train()
         t0 = time.time()
 
+        actor_clone = self.safe_clone_actor()
+
         # 0. Prepare ingredients
         states = self.preprocess_state(batch["states"])
         actions = self.preprocess_state(batch["actions"])
@@ -231,7 +233,6 @@ class IGTPO_Learner(Base):
         gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
         # 6. Manual SGD update (structured, not flat)
-        actor_clone = deepcopy(self.actor)
         with torch.no_grad():
             for p, g in zip(actor_clone.parameters(), gradients):
                 p -= self.igtpo_actor_lr * g
@@ -303,6 +304,13 @@ class IGTPO_Learner(Base):
         kl_div = torch.mean(mb_old_logprobs - logprobs)
 
         return actor_loss, entropy_loss, clip_fraction, kl_div
+
+    def safe_clone_actor(self):
+        # Move to CPU before deepcopy to avoid CUDA hangs in multiprocessing
+        actor_cpu = self.actor.to("cpu")
+        actor_clone = deepcopy(actor_cpu)
+        self.actor.to(self.device)
+        return actor_clone.to(self.device)
 
     def clip_grad_norm(self, grads, max_norm, eps=1e-6):
         # Compute total norm
