@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from log.wandb_logger import WandbLogger
-from policy.base import Base
+from policy.layers.base import Base
 from policy.uniform_random import UniformRandom
 from utils.rl import estimate_advantages
 from utils.sampler import OnlineSampler

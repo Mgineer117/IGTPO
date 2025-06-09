@@ -164,6 +164,7 @@ class EigenOption(nn.Module):
             hidden_dim=self.args.actor_fc_dim,
             action_dim=int(self.args.num_options + 1),
             is_discrete=True,
+            device=self.args.device,
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 

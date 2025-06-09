@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from policy.base import Base
+from policy.layers.base import Base
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from utils.rl import estimate_advantages
 
@@ -26,7 +26,7 @@ class PPO_Learner(Base):
         gamma: float = 0.99,
         gae: float = 0.9,
         K: int = 5,
-        device: str = "cpu",
+        device=torch.device("cpu"),
     ):
         super(PPO_Learner, self).__init__()
 

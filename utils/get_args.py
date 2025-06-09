@@ -113,7 +113,7 @@ def get_args():
     parser.add_argument("--num-minibatch", type=int, default=None, help="")
     parser.add_argument("--minibatch-size", type=int, default=None, help="")
     parser.add_argument("--batch-size", type=int, default=None, help="")
-    parser.add_argument("--num-local-updates", type=int, default=None, help="")
+    parser.add_argument("--num-inner-updates", type=int, default=None, help="")
     parser.add_argument("--K-epochs", type=int, default=None, help="")
     parser.add_argument(
         "--target-kl",

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from policy.base import Base
+from policy.layers.base import Base
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from utils.rl import estimate_advantages
 from utils.wrapper import RunningMeanStd

@@ -1,3 +1,4 @@
+import random
 import time
 from datetime import date
 from math import ceil, floor
@@ -52,36 +53,6 @@ class Base:
         )
         return data
 
-    def calculate_workers_and_rounds(self):
-        """
-        Calculate the number of workers and rounds for multiprocessing training.
-
-        Returns:
-            num_worker_per_round (list): Number of workers per round.
-            num_idx_per_round (list): Number of indices per round.
-            rounds (int): Total number of rounds.
-        """
-        # Calculate required number of workers
-        total_num_workers = ceil(self.batch_size / self.min_batch_for_worker)
-
-        if total_num_workers > self.num_cores:
-            # Calculate the number of workers per round per index
-            num_worker_per_round = []
-            rounds = ceil(total_num_workers / self.num_cores)
-
-            remaining_workers = total_num_workers
-
-            for _ in range(rounds):
-                workers_this_round = min(remaining_workers, self.num_cores)
-                num_worker_per_round.append(workers_this_round)
-                remaining_workers -= workers_this_round
-        else:
-            # All workers can run in a single round
-            num_worker_per_round = [total_num_workers]
-            rounds = 1
-
-        return num_worker_per_round, rounds
-
 
 class OnlineSampler(Base):
     def __init__(
@@ -121,15 +92,12 @@ class OnlineSampler(Base):
             num_cores=num_cores,
         )
 
-        self.manager = mp.Manager()
-        self.queue = self.manager.Queue()
-        self.num_workers_per_round, self.rounds = self.calculate_workers_and_rounds()
-        self.total_num_worker = sum(self.num_workers_per_round)
+        self.total_num_worker = ceil(batch_size / min_batch_for_worker)
 
         if verbose:
             print("Sampling Parameters:")
             print(
-                f"Cores used              : {self.num_workers_per_round}/{self.num_cores} (available: {mp.cpu_count()})"
+                f"Cores used              : {self.total_num_worker}/{self.num_cores} (available: {mp.cpu_count()})"
             )
             print(f"Total number of workers: {self.total_num_worker}")
             print(f"Max. batch size         : {self.thread_batch_size}")
@@ -159,47 +127,43 @@ class OnlineSampler(Base):
             duration (float): Time taken to collect.
         """
         t_start = time.time()
-        device = policy.device
+        device = next((p.device for p in policy.parameters()), torch.device("cpu"))
+
         policy.to_device(torch.device("cpu"))
 
-        queue = self.queue
-        worker_idx = 0
+        processes = []
+        queue = mp.Manager().Queue()
         worker_memories = [None] * self.total_num_worker
+        for i in range(self.total_num_worker):
+            args = (
+                i,
+                queue,
+                env,
+                policy,
+                seed,
+                deterministic,
+                random_init_pos,
+            )
+            p = mp.Process(target=self.collect_trajectory, args=args)
+            processes.append(p)
+            p.start()
 
-        for round_number in range(self.rounds):
-            processes = []
-            n_workers_this_round = self.num_workers_per_round[round_number]
-            round_worker_start_idx = worker_idx  # remember start of this round
-
-            for i in range(n_workers_this_round):
-                args = (
-                    worker_idx,
-                    queue,
-                    env,
-                    policy,
-                    seed,
-                    deterministic,
-                    random_init_pos,
-                )
-                p = mp.Process(target=self.collect_trajectory, args=args)
-                processes.append(p)
-                p.start()
-                worker_idx += 1
-
-            # ✅ Wait for just the subprocess workers of this round
-            expected = len(processes)
-            collected = 0
-            while collected < expected:
-                try:
-                    pid, data = queue.get(timeout=10)
+        # ✅ Wait for just the subprocess workers of this round
+        expected = len(processes)
+        collected = 0
+        while collected < expected:
+            try:
+                pid, data = queue.get(timeout=10)
+                if worker_memories[pid] is None:
                     worker_memories[pid] = data
                     collected += 1
-                except Exception as e:
-                    print(f"[Warning] Queue retrieval timeout or error: {e}")
-                    break
+            except queue.Empty:
+                print(f"[Warning] Queue timeout. Retrying... ({collected}/{expected})")
 
-            for p in processes:
-                p.join()
+        for p in processes:
+            p.join()
+            if p.exitcode != 0:
+                print(f"[Error] Process {p.pid} exited with code {p.exitcode}")
 
         # ✅ Merge memory
         memory = {}
@@ -218,6 +182,7 @@ class OnlineSampler(Base):
 
         t_end = time.time()
         policy.to_device(device)
+
         return memory, t_end - t_start
 
     def collect_trajectory(
@@ -226,15 +191,20 @@ class OnlineSampler(Base):
         queue,
         env,
         policy: nn.Module,
-        seed: int | None = None,
+        seed: int,
         deterministic: bool = False,
         random_init_pos: bool = False,
     ):
+        # assign per-worker seed
+        worker_seed = seed + pid
+        np.random.seed(worker_seed)
+        random.seed(worker_seed)
+        torch.manual_seed(worker_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(worker_seed)
+
         # estimate the batch size to hava a large batch
         data = self.get_reset_data(batch_size=self.thread_batch_size)  # allocate memory
-
-        if queue is not None:
-            temp_seed(seed, pid)
 
         current_step = 0
         while current_step < self.min_batch_for_worker:

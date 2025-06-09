@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 
 import torch
 import torch.nn as nn
@@ -26,11 +27,8 @@ class IGTPO_Algorithm(nn.Module):
         self.writer = writer
         self.args = args
 
-        self.args.igtpo_nupdates = int(args.timesteps * 0.9) // (
-            args.batch_size * args.num_local_updates * args.num_options
-        )
-        self.args.ppo_nupdates = int(args.timesteps * 0.1) // (
-            args.minibatch_size * args.num_minibatch
+        self.args.igtpo_nupdates = args.timesteps // (
+            args.batch_size * args.num_inner_updates * args.num_options
         )
 
         self.current_timesteps = 0
@@ -41,40 +39,24 @@ class IGTPO_Algorithm(nn.Module):
         self.define_eigenvectors()
 
         # === Sampler === #
-        outer_sampler = OnlineSampler(
+        sampler = OnlineSampler(
             state_dim=self.args.state_dim,
             action_dim=self.args.action_dim,
             episode_len=self.env.max_steps,
             batch_size=self.args.batch_size,
         )
-        inner_sampler = OnlineSampler(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            episode_len=self.env.max_steps,
-            batch_size=int(self.args.batch_size / 2),
-            verbose=False,
-        )
-
         # === Meta-train using options === #'
-        self.define_meta_policy()
+        self.define_outer_policy()
         trainer = IGTPOTrainer(
             env=self.env,
             policy=self.policy,
-            extractor=self.extractor,
-            meta_critic=self.critic,
-            task_critics=self.task_critics,
-            subtask_critics=self.subtask_critics,
-            eigenvectors=self.eigenvectors,
-            outer_sampler=outer_sampler,
-            inner_sampler=inner_sampler,
+            sampler=sampler,
             logger=self.logger,
             writer=self.writer,
-            num_local_updates=self.args.num_local_updates,
             init_timesteps=self.current_timesteps,
             timesteps=self.args.timesteps,
             log_interval=self.args.log_interval,
             eval_num=self.args.eval_num,
-            marker=self.args.marker,
             rendering=self.args.rendering,
             seed=self.args.seed,
             args=self.args,
@@ -155,68 +137,40 @@ class IGTPO_Algorithm(nn.Module):
             step=self.current_timesteps, images=heatmaps, logdir="Image/Heatmaps"
         )
 
-    def define_meta_policy(self):
+    def define_outer_policy(self):
         # === Define policy === #
-        self.actor = PPO_Actor(
+        actor = PPO_Actor(
             input_dim=self.args.state_dim,
             hidden_dim=self.args.actor_fc_dim,
             action_dim=self.args.action_dim,
             is_discrete=self.args.is_discrete,
+            device=self.args.device,
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        self.critic = Critic_Learner(
-            critic=critic,
-            critic_lr=self.args.critic_lr,
-            gamma=self.args.gamma,
-            gae=self.args.gae,
-            device=self.args.device,
+        extrinsic_critics = nn.ModuleList(
+            [deepcopy(critic) for _ in range(self.args.num_options)]
         )
-        self.task_critics = Critics_Learner(
-            critic=critic,
-            critic_lr=self.args.critic_lr,
-            num=self.eigenvectors.shape[0],
-            gamma=self.args.gamma,
-            gae=self.args.gae,
-            device=self.args.device,
-        )
-        self.subtask_critics = Critics_Learner(
-            critic=critic,
-            critic_lr=self.args.critic_lr,
-            num=self.eigenvectors.shape[0],
-            gamma=self.args.gamma,
-            gae=self.args.gae,
-            device=self.args.device,
+        intrinsic_critics = nn.ModuleList(
+            [deepcopy(critic) for _ in range(self.args.num_options)]
         )
 
         self.policy = IGTPO_Learner(
-            actor=self.actor,
+            extractor=self.extractor,
+            eigenvectors=self.eigenvectors,
+            actor=actor,
+            extrinsic_critics=extrinsic_critics,
+            intrinsic_critics=intrinsic_critics,
             nupdates=self.args.igtpo_nupdates,
-            igtpo_actor_lr=self.args.igtpo_actor_lr,
+            num_vectors=self.args.num_options,
+            num_inner_updates=self.args.num_inner_updates,
+            actor_lr=self.args.igtpo_actor_lr,
+            critic_lr=self.args.critic_lr,
             batch_size=self.args.batch_size,
             eps_clip=self.args.eps_clip,
             entropy_scaler=self.args.entropy_scaler,
             target_kl=self.args.target_kl,
             gamma=self.args.gamma,
             gae=self.args.gae,
-            K=self.args.K_epochs,
-            device=self.args.device,
-        )
-
-    def define_ppo_policy(self):
-        self.policy = PPO_Learner(
-            actor=self.actor,
-            critic=self.critic,
-            nupdates=self.args.ppo_nupdates,
-            actor_lr=self.args.actor_lr,
-            critic_lr=self.args.critic_lr,
-            num_minibatch=self.args.num_minibatch,
-            minibatch_size=self.args.minibatch_size,
-            eps_clip=self.args.eps_clip,
-            entropy_scaler=self.args.entropy_scaler,
-            target_kl=self.args.target_kl,
-            gamma=self.args.gamma,
-            gae=self.args.gae,
-            K=self.args.K_epochs,
             device=self.args.device,
         )

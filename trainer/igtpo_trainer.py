@@ -13,8 +13,8 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from log.wandb_logger import WandbLogger
-from policy.base import Base
 from policy.igtpo import IGTPO_Learner
+from policy.layers.base import Base
 from policy.layers.ppo_networks import PPO_Actor
 from utils.rl import estimate_advantages
 from utils.sampler import OnlineSampler
@@ -37,39 +37,21 @@ class IGTPOTrainer:
         self,
         env: gym.Env,
         policy: Base,
-        extractor: nn.Module,
-        meta_critic: nn.Module,
-        task_critics: nn.Module,
-        subtask_critics: nn.Module,
-        eigenvectors: torch.Tensor,
-        outer_sampler: OnlineSampler,
-        inner_sampler: OnlineSampler,
+        sampler: OnlineSampler,
         logger: WandbLogger,
         writer: SummaryWriter,
-        num_local_updates: int = 10,
         init_timesteps: int = 0,
         timesteps: int = 1e6,
         log_interval: int = 100,
         eval_num: int = 10,
-        marker: int = 10,
         rendering: bool = False,
         seed: int = 0,
         args=None,
     ) -> None:
         self.env = env
         self.policy = policy
-        self.extractor = extractor
-        self.meta_critic = meta_critic
-        self.task_critics = task_critics
-        self.subtask_critics = subtask_critics
 
-        self.eigenvectors = eigenvectors
-        self.num_vectors = eigenvectors.shape[0]
-        self.num_vector_names = [f"{i}" for i in range(self.num_vectors)]
-
-        self.outer_sampler = outer_sampler
-        self.inner_sampler = inner_sampler
-        self.num_local_updates = num_local_updates
+        self.sampler = sampler
         self.eval_num = eval_num
 
         self.logger = logger
@@ -80,8 +62,10 @@ class IGTPOTrainer:
         self.timesteps = timesteps
 
         self.log_interval = log_interval
-        self.prune_interval = int((self.timesteps / 2) / self.num_vectors)
-        self.trim_interval = int((self.timesteps / 2) / (self.num_local_updates - 2))
+        self.prune_interval = int((self.timesteps / 2) / self.policy.num_vectors)
+        self.trim_interval = int(
+            (self.timesteps / 2) / (self.policy.num_inner_updates - 2)
+        )
         self.eval_interval = int(self.timesteps / self.log_interval)
 
         # initialize the essential training components
@@ -102,7 +86,6 @@ class IGTPOTrainer:
         eval_idx = 0
         prune_idx = 0
         trim_idx = int(self.timesteps / 2) / self.trim_interval
-        subtask_values = np.array([0.0 for _ in range(self.num_vectors)])
 
         with tqdm(
             total=self.timesteps + self.init_timesteps,
@@ -110,203 +93,14 @@ class IGTPOTrainer:
             desc=f"{self.policy.name} Training (Timesteps)",
         ) as pbar:
             while pbar.n < self.timesteps + self.init_timesteps:
-                # --- START OF EPOCH/ITERATION ---
-                current_step = pbar.n
-                total_timesteps, total_sample_time, total_update_time = 0, 0, 0
-                self.policy.train()
-
-                # === Initial Iteration ===
-                meta_batch, sample_time = self.inner_sampler.collect_samples(
-                    env=self.env, policy=self.policy, seed=self.seed
+                loss_dict, timesteps = self.policy.learn(
+                    self.env, self.sampler, self.seed
                 )
-                meta_timesteps = meta_batch["rewards"].shape[0]
-                current_step += meta_timesteps
-                total_timesteps += meta_timesteps
+                current_step = pbar.n + timesteps
 
-                # Meta-critic update
-                meta_critic_loss_dict, meta_mean_value = self.meta_critic.learn(
-                    meta_batch
-                )
-
-                # Setup tracking variables
-                policy_dict, gradient_dict = {}, {}
-                loss_dict_list = [meta_critic_loss_dict]
-
-                # === First iteration for each vector ===
-                for i in range(self.num_vectors):
-                    batch_i = deepcopy(meta_batch)
-
-                    # Use intrinsic rewards from eigenvectors
-                    batch_i["rewards"] = self.intrinsic_rewards(
-                        batch_i, self.eigenvectors[i]
-                    )
-                    policy = deepcopy(self.policy)
-                    critic = self.subtask_critics.critics[i]
-
-                    loss_dict, timesteps, update_time, new_policy, gradients, _ = (
-                        policy.learn(critic, batch_i, "local")
-                    )
-
-                    # Logging and bookkeeping
-                    total_timesteps += timesteps
-                    total_sample_time += sample_time
-                    total_update_time += update_time
-                    loss_dict_list.append(loss_dict)
-
-                    prev_iter_idx = f"0_{i}"
-                    policy_dict[prev_iter_idx] = policy
-                    gradient_dict[prev_iter_idx] = gradients
-
-                    iter_idx = f"1_{i}"
-                    policy_dict[iter_idx] = new_policy
-
-                # === Subsequent Iterations ===
-                for j in range(1, self.num_local_updates):
-                    for i in range(self.num_vectors):
-                        prefix = "local" if j != self.num_local_updates - 1 else "meta"
-                        prev_iter_idx = f"{j}_{i}"
-                        policy = policy_dict[prev_iter_idx]
-
-                        if prefix == "local":
-                            task_batch, sample_time = (
-                                self.inner_sampler.collect_samples(
-                                    env=self.env, policy=policy, seed=self.seed
-                                )
-                            )
-                        else:
-                            task_batch, sample_time = (
-                                self.outer_sampler.collect_samples(
-                                    env=self.env, policy=policy, seed=self.seed
-                                )
-                            )
-
-                        option_batch = deepcopy(task_batch)
-                        option_batch["rewards"] = self.intrinsic_rewards(
-                            option_batch, self.eigenvectors[i]
-                        )
-
-                        # Train critics
-                        task_loss_dict = self.task_critics.learn(
-                            task_batch, idx=i, prefix="task"
-                        )
-                        subtask_loss_dict = self.subtask_critics.learn(
-                            option_batch, idx=i, prefix="subtask"
-                        )
-
-                        if prefix == "local":
-                            critic = self.subtask_critics.critics[i]
-                            (
-                                loss_dict,
-                                timesteps,
-                                update_time,
-                                new_policy,
-                                gradients,
-                                _,
-                            ) = policy.learn(critic, option_batch, prefix)
-                            loss_dict[
-                                f"{policy.name}-{prefix}/analytics/task_rewards"
-                            ] = np.mean(task_batch["rewards"])
-                        else:
-                            critic = self.task_critics.critics[i]
-                            (
-                                loss_dict,
-                                timesteps,
-                                update_time,
-                                new_policy,
-                                gradients,
-                                mean_value,
-                            ) = policy.learn(critic, task_batch, prefix)
-
-                        subtask_values[i] += task_batch["rewards"].mean()
-
-                        # Logging and bookkeeping
-                        loss_dict.update(task_loss_dict)
-                        loss_dict.update(subtask_loss_dict)
-                        loss_dict_list.append(loss_dict)
-                        total_timesteps += timesteps
-                        total_sample_time += sample_time
-                        total_update_time += update_time
-
-                        iter_idx = f"{j+1}_{i}"
-                        policy_dict[iter_idx] = new_policy
-                        gradient_dict[prev_iter_idx] = gradients
-
-                # === Meta-gradient computation ===
-                argmax_idx = np.argmax(subtask_values)
-                most_contributing_index = self.num_vector_names[argmax_idx]
-
-                meta_gradients = []
-                for i in range(self.num_vectors):
-                    gradients = gradient_dict[f"{self.num_local_updates - 1}_{i}"]
-                    for j in reversed(range(self.num_local_updates - 1)):
-                        iter_idx = f"{j}_{i}"
-                        Hv = grad(
-                            gradient_dict[iter_idx],
-                            policy_dict[iter_idx].actor.parameters(),
-                            grad_outputs=gradients,
-                        )
-                        gradients = tuple(
-                            g - self.policy.igtpo_actor_lr * h
-                            for g, h in zip(gradients, Hv)
-                        )
-                    meta_gradients.append(gradients)
-
-                # Average across vectors
-                # meta_gradients_transposed = list(
-                #     zip(*meta_gradients)
-                # )  # Group by parameter
-                # gradients = tuple(
-                #     torch.mean(torch.stack(grads_per_param), dim=0)
-                #     for grads_per_param in meta_gradients_transposed
-                # )
-
-                gradients = meta_gradients[argmax_idx]
-
-                # === TRPO update === #
-                backtrack_iter, backtrack_success = self.policy.trpo_learn(
-                    states=meta_batch["states"],
-                    grads=gradients,
-                )
-
-                # === Update progress ===
-                pbar.update(total_timesteps)
-
-                elapsed_time = time.time() - start_time
-                avg_time_per_iter = elapsed_time / current_step
-                remaining_time = avg_time_per_iter * (self.timesteps - current_step)
-
-                # Update environment steps and calculate time metrics
-                loss_dict = self.average_dict_values(loss_dict_list)
-                loss_dict[f"{self.policy.name}/analytics/timesteps"] = current_step
-                loss_dict[f"{self.policy.name}/analytics/sample_time"] = (
-                    total_sample_time
-                )
-                loss_dict[f"{self.policy.name}/analytics/update_time"] = (
-                    total_update_time
-                )
-                loss_dict[f"{self.policy.name}/analytics/remaining_time (hr)"] = (
-                    remaining_time / 3600
-                )  # Convert to hours
-                loss_dict[f"{self.policy.name}/parameters/num vectors"] = (
-                    self.num_vectors
-                )
-                loss_dict[f"{self.policy.name}/parameters/num_local_updates"] = (
-                    self.num_local_updates
-                )
-                loss_dict[f"{self.policy.name}/analytics/Contributing Option"] = int(
-                    most_contributing_index
-                )
-                loss_dict[f"{self.policy.name}/analytics/Backtrack_iter"] = (
-                    backtrack_iter
-                )
-                loss_dict[f"{self.policy.name}/analytics/Backtrack_success"] = (
-                    backtrack_success
-                )
-                loss_dict[f"{self.policy.name}/analytics/target_kl"] = (
-                    self.policy.target_kl
-                )
-
-                self.write_log(loss_dict, step=current_step)
+                # === Update progress === #
+                self.write_log(loss_dict, current_step)
+                pbar.update(timesteps)
 
                 # === reduce target_kl === #
                 self.policy.lr_scheduler(
@@ -314,36 +108,14 @@ class IGTPOTrainer:
                 )
 
                 # === PRUNE TWIG === #
-                if self.num_vectors > 1:
-                    if current_step > self.prune_interval * (prune_idx + 1):
-                        prune_idx += 1
-
-                        least_contributing_index = np.argmin(subtask_values)
-                        self.eigenvectors = np.concatenate(
-                            [
-                                self.eigenvectors[:least_contributing_index],
-                                self.eigenvectors[least_contributing_index + 1 :],
-                            ],
-                            axis=0,
-                        )
-
-                        # Prune the corresponding optimizer
-                        del self.subtask_critics.critics[least_contributing_index]
-                        del self.subtask_critics.optimizers[least_contributing_index]
-                        del self.num_vector_names[least_contributing_index]
-
-                        subtask_values = np.delete(
-                            subtask_values, least_contributing_index
-                        )
-
-                        # Update the number of vectors
-                        self.num_vectors = self.eigenvectors.shape[0]
+                if current_step > self.prune_interval * (prune_idx + 1):
+                    self.policy.prune()
+                    prune_idx += 1
 
                 # === TRIM TWIG === #
-                if self.num_local_updates > 2:
-                    if current_step > self.trim_interval * trim_idx:
-                        self.num_local_updates -= 1
-                        trim_idx += 1
+                if current_step > self.trim_interval * trim_idx:
+                    self.policy.trim()
+                    trim_idx += 1
 
                 # === EVALUATIONS === #
                 if current_step >= self.eval_interval * eval_idx:
@@ -367,7 +139,6 @@ class IGTPOTrainer:
 
                     self.save_model(current_step)
 
-                del meta_batch, option_batch, task_batch, policy_dict, gradient_dict
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
@@ -423,58 +194,6 @@ class IGTPOTrainer:
 
         return eval_dict, image_array
 
-    def copy_policy(self):
-        # Construct a new actor
-        actor = PPO_Actor(
-            input_dim=self.args.state_dim,
-            hidden_dim=self.args.actor_fc_dim,
-            action_dim=self.args.action_dim,
-            is_discrete=self.args.is_discrete,
-        )
-
-        # Construct a new policy (on CPU)
-        policy = IGTPO_Learner(
-            actor=actor,
-            nupdates=self.args.igtpo_nupdates,
-            igtpo_actor_lr=self.args.igtpo_actor_lr,
-            batch_size=self.args.batch_size,
-            eps_clip=self.args.eps_clip,
-            entropy_scaler=self.args.entropy_scaler,
-            target_kl=self.args.target_kl,
-            gamma=self.args.gamma,
-            gae=self.args.gae,
-            K=self.args.K_epochs,
-            device=torch.device("cpu"),  # explicitly force CPU
-        )
-
-        # Load a CPU copy of the state_dict
-        state_dict_cpu = {
-            k: v.detach().cpu().clone() for k, v in self.policy.state_dict().items()
-        }
-        policy.load_state_dict(state_dict_cpu)
-
-        # ✅ Ensure device match
-        policy = policy.to(self.args.device)
-
-        return policy
-
-    def intrinsic_rewards(self, batch, eigenvector):
-        states = batch["states"]
-        next_states = batch["next_states"]
-
-        # get features
-        with torch.no_grad():
-            feature, _ = self.extractor(states)
-            next_feature, _ = self.extractor(next_states)
-
-            difference = next_feature - feature
-            difference = difference.cpu().numpy()
-
-        # Calculate the intrinsic reward using the eigenvector
-        intrinsic_rewards = np.matmul(difference, eigenvector[:, np.newaxis])
-
-        return intrinsic_rewards
-
     def discounted_return(self, rewards, gamma):
         G = 0
         for r in reversed(rewards):
@@ -523,32 +242,3 @@ class IGTPOTrainer:
                 self.last_min_return_std = np.mean(self.last_return_std)
         else:
             raise ValueError("Error: Model is not identifiable!!!")
-
-    def average_dict_values(self, dict_list):
-        if not dict_list:
-            return {}
-
-        # Initialize a dictionary to hold the sum of values and counts for each key
-        sum_dict = {}
-        count_dict = {}
-
-        # Iterate over each dictionary in the list
-        for d in dict_list:
-            for key, value in d.items():
-                if key not in sum_dict:
-                    sum_dict[key] = 0
-                    count_dict[key] = 0
-                sum_dict[key] += value
-                count_dict[key] += 1
-
-        # Calculate the average for each key
-        avg_dict = {key: sum_val / count_dict[key] for key, sum_val in sum_dict.items()}
-
-        return avg_dict
-
-    def flat_grads(self, grads: tuple):
-        """
-        Flatten the gradients into a single tensor.
-        """
-        flat_grad = torch.cat([g.view(-1) for g in grads])
-        return flat_grad

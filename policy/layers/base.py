@@ -24,25 +24,39 @@ class Base(nn.Module):
 
     def to_device(self, device):
         self.device = device
+        # because actor is coded to be independent nn.Module for decision-making
+        if hasattr(self, "actor"):
+            self.actor.device = device
+        if hasattr(self, "sampled_actor"):
+            self.sampled_actor.device = device
         self.to(device)
 
     def preprocess_state(self, state: torch.Tensor | np.ndarray) -> torch.Tensor:
         """
-        Preprocess the state to the required format.
+        Convert input state to a 2D or 4D torch.Tensor on the correct device and dtype.
+        - 2D: (B, D) for vector states
+        - 4D: (B, C, H, W) for image states
         """
-        if isinstance(state, torch.Tensor):
-            state = state.to(self.device)
-        elif isinstance(state, np.ndarray):
-            state = torch.from_numpy(state).to(self.device).to(self.dtype)
-        else:
+        if isinstance(state, np.ndarray):
+            state = torch.from_numpy(state)
+        elif not isinstance(state, torch.Tensor):
             raise ValueError("Unsupported state type. Must be a tensor or numpy array.")
 
-        if len(state.shape) == 1 or len(state.shape) == 3:
-            state = state.unsqueeze(0)
-        if len(state.shape) > 3:
-            state = state.view(state.size(0), -1)
+        state = state.to(self.device).to(self.dtype)
 
-        return state
+        # Ensure batch dimension exists
+        if state.ndim in [1, 3]:  # (D) or (C, H, W)
+            state = state.unsqueeze(0)
+
+        # Final shape control
+        if state.ndim == 2:  # (B, D) -> vector input
+            return state
+        elif state.ndim == 4:  # (B, C, H, W) -> image input
+            return state.view(state.size(0), -1)
+        else:
+            raise ValueError(
+                f"Unsupported state shape {state.shape}, expected 2D or 4D."
+            )
 
     def compute_gradient_norm(self, models, names, device, dir="None", norm_type=2):
         grad_dict = {}

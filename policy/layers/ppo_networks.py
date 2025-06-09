@@ -4,14 +4,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical, MultivariateNormal, Normal
 
+from policy.layers.base import Base
 from policy.layers.building_blocks import MLP
 
 
-class PPO_Actor(nn.Module):
-    """
-    Psi Advantage Function: Psi(s,a) - (1/|A|)SUM_a' Psi(s, a')
-    """
-
+class PPO_Actor(Base):
     def __init__(
         self,
         input_dim: int,
@@ -19,6 +16,7 @@ class PPO_Actor(nn.Module):
         action_dim: int,
         is_discrete: bool,
         activation: nn.Module = nn.Tanh(),
+        device=torch.device("cpu"),
     ):
         super(PPO_Actor, self).__init__()
 
@@ -37,6 +35,8 @@ class PPO_Actor(nn.Module):
         if not self.is_discrete:
             self.logstd = nn.Parameter(torch.zeros(1, self.action_dim))
 
+        self.device = device
+
     def forward(
         self,
         state: torch.Tensor,
@@ -48,6 +48,7 @@ class PPO_Actor(nn.Module):
         :param deterministic: If True, use deterministic action selection.
         :return: Action tensor and additional metadata.
         """
+        state = self.preprocess_state(state)
         if self.is_discrete:
             a, metaData = self.discrete_forward(state, deterministic)
         else:

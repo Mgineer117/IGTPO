@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from policy.base import Base
+from policy.layers.base import Base
 from utils.rl import estimate_advantages
 
 

@@ -5,7 +5,7 @@
     "feature_dim": 32,
     "eps_clip": 0.2,
     "K_epochs": 5,
-    "num_local_updates": 15,
+    "num_inner_updates": 15,
     "target_kl": 0.03,
     "num_options": 8,
     "num_minibatch": 4,

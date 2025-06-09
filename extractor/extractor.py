@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import LambdaLR
 
-from policy.base import Base
+from policy.layers.base import Base
 
 
 class DummyExtractor(Base):
