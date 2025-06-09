@@ -24,6 +24,13 @@ from utils.rl import (
 from utils.sampler import OnlineSampler
 
 
+def check_model_params_equal(model1, model2) -> bool:
+    for p1, p2 in zip(model1.parameters(), model2.parameters()):
+        if not torch.equal(p1, p2):
+            return False
+    return True
+
+
 class IGTPO_Learner(Base):
     def __init__(
         self,
@@ -72,14 +79,7 @@ class IGTPO_Learner(Base):
         # define nn.Module
         self.extractor = extractor
         self.actor = actor
-        self.dummy_actor = PPO_Actor(
-            input_dim=actor.state_dim,
-            hidden_dim=actor.hidden_dim,
-            action_dim=actor.action_dim,
-            is_discrete=actor.is_discrete,
-            activation=nn.Tanh(),
-            device=self.device,  # <- important
-        )
+
         self.extrinsic_critics = extrinsic_critics
         self.intrinsic_critics = intrinsic_critics
 
@@ -158,11 +158,10 @@ class IGTPO_Learner(Base):
 
                 # choose actor
                 actor_idx = f"{i}_{j}"
-                actor = policy_dict[actor_idx]
+                future_actor_idx = f"{i}_{j+1}"
 
-                batch, sample_time = sampler.collect_samples(
-                    env, self.dummy_actor, seed
-                )
+                actor = policy_dict[actor_idx]
+                batch, sample_time = sampler.collect_samples(env, actor, seed)
 
                 # save reward probability
                 self.probabilities[i] += batch["rewards"].mean()
@@ -178,7 +177,6 @@ class IGTPO_Learner(Base):
                 loss_dict_list.append(loss_dict)
 
                 gradient_dict[actor_idx] = gradients
-                future_actor_idx = f"{i}_{j+1}"
                 policy_dict[future_actor_idx] = actor_clone
 
                 total_timesteps += timesteps
@@ -320,9 +318,16 @@ class IGTPO_Learner(Base):
             sum(g.pow(2).sum() for g in gradients if g is not None)
         )
 
+        print(
+            i,
+            torch.mean(intrinsic_rewards).item(),
+        )
+
         loss_dict = {
             f"{self.name}/loss/loss": loss.item(),
             f"{self.name}/loss/actor_loss": actor_loss.item(),
+            f"{self.name}/loss/extrinsic_critic_loss": extrinsic_critic_loss.item(),
+            f"{self.name}/loss/intrinsic_critic_loss": intrinsic_critic_loss.item(),
             f"{self.name}/loss/entropy_loss": entropy_loss.item(),
             f"{self.name}/grad/actor": actor_grad_norm.item(),
             f"{self.name}/analytics/avg_extrinsic_rewards": torch.mean(
