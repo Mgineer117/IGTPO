@@ -38,7 +38,7 @@ class Base:
         The remainder of zero arrays will be cut in the end.
         np.nan makes it easy to debug
         """
-        batch_size = 3 * self.episode_len
+        batch_size = 2 * self.episode_len
         data = dict(
             states=np.full(((batch_size,) + self.state_dim), np.nan, dtype=np.float32),
             next_states=np.full(
@@ -89,7 +89,7 @@ class OnlineSampler(Base):
             num_cores=num_cores,
         )
 
-        self.total_num_worker = ceil(batch_size / (2 * episode_len))
+        self.total_num_worker = ceil(batch_size / episode_len)
 
         if verbose:
             print("Sampling Parameters:")
@@ -162,8 +162,8 @@ class OnlineSampler(Base):
                 )
                 p.terminate()
                 p.join()  # Force cleanup
-            # if p.exitcode != 0:
-            #     print(f"[Error] Process {p.pid} exited with code {p.exitcode}")
+            if p.exitcode != 0:
+                print(f"[Error] Process {p.pid} exited with code {p.exitcode}")
 
         # ✅ Merge memory
         memory = {}
@@ -207,7 +207,7 @@ class OnlineSampler(Base):
         data = self.get_reset_data()  # allocate memory
 
         current_step = 0
-        while current_step < 2 * self.episode_len:
+        while current_step < self.episode_len:
             # env initialization
             options = {"random_init_pos": random_init_pos}
             state, _ = env.reset(seed=seed, options=options)
@@ -306,7 +306,7 @@ class HLSampler(OnlineSampler):
         data = self.get_reset_data()  # allocate memory
 
         current_step = 0
-        while current_step < 2 * self.episode_len:
+        while current_step < self.episode_len:
             # env initialization
             options = {"random_init_pos": random_init_pos}
             state, _ = env.reset(seed=seed, options=options)
