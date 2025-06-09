@@ -86,6 +86,7 @@ if __name__ == "__main__":
     for seed in seeds:
         args = override_args(init_args)
         args.seed = seed
+        args.unique_id = unique_id
 
         # when using extractor, make sure feature_dim is sufficient
         if args.feature_dim is not None:
