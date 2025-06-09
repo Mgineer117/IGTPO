@@ -162,8 +162,8 @@ class OnlineSampler(Base):
                 )
                 p.terminate()
                 p.join()  # Force cleanup
-            if p.exitcode != 0:
-                print(f"[Error] Process {p.pid} exited with code {p.exitcode}")
+            # if p.exitcode != 0:
+            #     print(f"[Error] Process {p.pid} exited with code {p.exitcode}")
 
         # ✅ Merge memory
         memory = {}

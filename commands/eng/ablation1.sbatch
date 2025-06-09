@@ -19,10 +19,10 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-local-updates 5 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-local-updates 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-local-updates 15 & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-local-updates 20 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 5 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 10 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 15 & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 20 & 
 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.001 & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.0001 & 
