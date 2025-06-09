@@ -113,18 +113,10 @@ class IGTPO_Learner(Base):
 
             self.probabilities = np.delete(self.probabilities, least_contributing_index)
             self.num_vectors -= 1
-        else:
-            raise ValueError(
-                f"Num branch must be greater than 2. Curent: {len(self.probabilities)}"
-            )
 
     def trim(self):
         if self.num_inner_updates > 2:
             self.num_inner_updates -= 1
-        else:
-            raise ValueError(
-                f"Num inner updates {self.num_inner_updates} should be > 2"
-            )
 
     def forward(self, state: np.ndarray, deterministic: bool = False):
         state = self.preprocess_state(state)
