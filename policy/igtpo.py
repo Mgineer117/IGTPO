@@ -129,57 +129,6 @@ class IGTPO_Learner(Base):
             "dist": metaData["dist"],
         }
 
-    def learn_outer_level_polocy(
-        self,
-        states: np.ndarray,
-        grads: tuple[torch.Tensor],
-        damping: float = 1e-1,
-        backtrack_iters: int = 10,
-        backtrack_coeff: float = 0.8,
-    ):
-        states = self.preprocess_state(states)
-
-        old_actor = deepcopy(self.actor)
-
-        # Flatten meta-gradients
-        meta_grad_flat = torch.cat([g.view(-1) for g in grads]).detach()
-
-        # KL function (closure)
-        def kl_fn():
-            return compute_kl(old_actor, self.actor, states)
-
-        # Define HVP function
-        Hv = lambda v: hessian_vector_product(kl_fn, self.actor, damping, v)
-
-        # Compute step direction with CG
-        step_dir = conjugate_gradients(Hv, meta_grad_flat, nsteps=10)
-
-        # Compute step size to satisfy KL constraint
-        sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
-        lm = torch.sqrt(sAs / self.target_kl)
-        full_step = step_dir / (lm + 1e-8)
-
-        # Apply update
-        with torch.no_grad():
-            old_params = flat_params(self.actor)
-
-            # Backtracking line search
-            success = False
-            for i in range(backtrack_iters):
-                step_frac = backtrack_coeff**i
-                new_params = old_params - step_frac * full_step
-                set_flat_params(self.actor, new_params)
-                kl = compute_kl(old_actor, self.actor, states)
-
-                if kl <= self.target_kl:
-                    success = True
-                    break
-
-            if not success:
-                set_flat_params(self.actor, old_params)
-
-        return i, success
-
     def learn(self, env: gym.Env, sampler: OnlineSampler, seed: int):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
@@ -241,6 +190,13 @@ class IGTPO_Learner(Base):
                 )
                 gradients = tuple(g - self.actor_lr * h for g, h in zip(gradients, Hv))
             outer_gradients.append(gradients)
+
+        # Average across vectors
+        # outer_gradients_transposed = list(zip(*outer_gradients))  # Group by parameter
+        # gradients = tuple(
+        #     torch.mean(torch.stack(grads_per_param), dim=0)
+        #     for grads_per_param in outer_gradients_transposed
+        # )
 
         gradients = outer_gradients[argmax_idx]
 
@@ -385,6 +341,57 @@ class IGTPO_Learner(Base):
             actor_clone,
             gradients,
         )
+
+    def learn_outer_level_polocy(
+        self,
+        states: np.ndarray,
+        grads: tuple[torch.Tensor],
+        damping: float = 1e-1,
+        backtrack_iters: int = 10,
+        backtrack_coeff: float = 0.8,
+    ):
+        states = self.preprocess_state(states)
+
+        old_actor = deepcopy(self.actor)
+
+        # Flatten meta-gradients
+        meta_grad_flat = torch.cat([g.view(-1) for g in grads]).detach()
+
+        # KL function (closure)
+        def kl_fn():
+            return compute_kl(old_actor, self.actor, states)
+
+        # Define HVP function
+        Hv = lambda v: hessian_vector_product(kl_fn, self.actor, damping, v)
+
+        # Compute step direction with CG
+        step_dir = conjugate_gradients(Hv, meta_grad_flat, nsteps=10)
+
+        # Compute step size to satisfy KL constraint
+        sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
+        lm = torch.sqrt(sAs / self.target_kl)
+        full_step = step_dir / (lm + 1e-8)
+
+        # Apply update
+        with torch.no_grad():
+            old_params = flat_params(self.actor)
+
+            # Backtracking line search
+            success = False
+            for i in range(backtrack_iters):
+                step_frac = backtrack_coeff**i
+                new_params = old_params - step_frac * full_step
+                set_flat_params(self.actor, new_params)
+                kl = compute_kl(old_actor, self.actor, states)
+
+                if kl <= self.target_kl:
+                    success = True
+                    break
+
+            if not success:
+                set_flat_params(self.actor, old_params)
+
+        return i, success
 
     def clone_actor(self, actor: nn.Module):
         """
