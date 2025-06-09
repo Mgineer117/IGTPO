@@ -22,9 +22,7 @@ class Base:
         self.action_dim = kwargs.get("action_dim")
         self.episode_len = kwargs.get("episode_len")
         self.batch_size = kwargs.get("batch_size")
-        self.min_batch_for_worker = kwargs.get("min_batch_for_worker", 1024)
-        self.thread_batch_size = self.min_batch_for_worker + self.episode_len
-
+        self.thread_batch_size = 2 * self.episode_len
         self.cpu_preserve_rate = kwargs.get("cpu_preserve_rate", 0.95)
         self.num_cores = kwargs.get("num_cores", None)
 
@@ -34,12 +32,13 @@ class Base:
             self.num_cores if self.num_cores is not None else self.temp_cores
         )
 
-    def get_reset_data(self, batch_size):
+    def get_reset_data(self):
         """
         We create a initialization batch to avoid the daedlocking.
         The remainder of zero arrays will be cut in the end.
         np.nan makes it easy to debug
         """
+        batch_size = 2 * self.episode_len
         data = dict(
             states=np.full(((batch_size,) + self.state_dim), np.nan, dtype=np.float32),
             next_states=np.full(
@@ -61,7 +60,6 @@ class OnlineSampler(Base):
         action_dim: int,
         episode_len: int,
         batch_size: int,
-        min_batch_for_worker: int = 1024,
         cpu_preserve_rate: float = 1.0,
         num_cores: int | None = None,
         verbose: bool = True,
@@ -87,20 +85,15 @@ class OnlineSampler(Base):
             action_dim=action_dim,
             episode_len=episode_len,
             batch_size=batch_size,
-            min_batch_for_worker=min_batch_for_worker,
             cpu_preserve_rate=cpu_preserve_rate,
             num_cores=num_cores,
         )
 
-        self.total_num_worker = ceil(batch_size / min_batch_for_worker)
+        self.total_num_worker = ceil(batch_size / episode_len)
 
         if verbose:
             print("Sampling Parameters:")
-            print(
-                f"Cores used              : {self.total_num_worker}/{self.num_cores} (available: {mp.cpu_count()})"
-            )
             print(f"Total number of workers: {self.total_num_worker}")
-            print(f"Max. batch size         : {self.thread_batch_size}")
 
         torch.set_num_threads(1)  # Avoid CPU oversubscription
 
@@ -160,8 +153,12 @@ class OnlineSampler(Base):
             except queue.Empty:
                 print(f"[Warning] Queue timeout. Retrying... ({collected}/{expected})")
 
+        start_time = time.time()
         for p in processes:
-            p.join()
+            p.join(timeout=max(0.1, 10 - (time.time() - start_time)))
+            if p.is_alive():
+                p.terminate()
+                p.join()  # Force cleanup
             if p.exitcode != 0:
                 print(f"[Error] Process {p.pid} exited with code {p.exitcode}")
 
@@ -204,10 +201,10 @@ class OnlineSampler(Base):
             torch.cuda.manual_seed_all(worker_seed)
 
         # estimate the batch size to hava a large batch
-        data = self.get_reset_data(batch_size=self.thread_batch_size)  # allocate memory
+        data = self.get_reset_data()  # allocate memory
 
         current_step = 0
-        while current_step < self.min_batch_for_worker:
+        while current_step < self.episode_len:
             # env initialization
             options = {"random_init_pos": random_init_pos}
             state, _ = env.reset(seed=seed, options=options)
@@ -259,7 +256,6 @@ class HLSampler(OnlineSampler):
         max_option_len: int,
         gamma: float,
         batch_size: int,
-        min_batch_for_worker: int = 1024,
         cpu_preserve_rate: float = 0.95,
         num_cores: int | None = None,
         verbose: bool = True,
@@ -280,7 +276,6 @@ class HLSampler(OnlineSampler):
             action_dim=action_dim,
             episode_len=episode_len,
             batch_size=batch_size,
-            min_batch_for_worker=min_batch_for_worker,
             cpu_preserve_rate=cpu_preserve_rate,
             num_cores=num_cores,
             verbose=verbose,
@@ -296,14 +291,19 @@ class HLSampler(OnlineSampler):
         deterministic: bool = False,
         random_init_pos: bool = False,
     ):
-        # estimate the batch size to hava a large batch
-        data = self.get_reset_data(batch_size=self.thread_batch_size)  # allocate memory
+        # assign per-worker seed
+        worker_seed = seed + pid
+        np.random.seed(worker_seed)
+        random.seed(worker_seed)
+        torch.manual_seed(worker_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(worker_seed)
 
-        if queue is not None:
-            temp_seed(seed, pid)
+        # estimate the batch size to hava a large batch
+        data = self.get_reset_data()  # allocate memory
 
         current_step = 0
-        while current_step < self.min_batch_for_worker:
+        while current_step < self.episode_len:
             # env initialization
             options = {"random_init_pos": random_init_pos}
             state, _ = env.reset(seed=seed, options=options)

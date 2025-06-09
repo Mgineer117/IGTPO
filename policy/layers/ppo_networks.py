@@ -21,6 +21,7 @@ class PPO_Actor(Base):
         super(PPO_Actor, self).__init__()
 
         self.state_dim = np.prod(input_dim)
+        self.hidden_dim = hidden_dim
         self.action_dim = np.prod(action_dim)
 
         self.is_discrete = is_discrete
@@ -36,6 +37,7 @@ class PPO_Actor(Base):
             self.logstd = nn.Parameter(torch.zeros(1, self.action_dim))
 
         self.device = device
+        self.to(self.device).to(self.dtype)
 
     def forward(
         self,

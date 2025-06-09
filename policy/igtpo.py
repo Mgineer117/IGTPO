@@ -72,6 +72,14 @@ class IGTPO_Learner(Base):
         # define nn.Module
         self.extractor = extractor
         self.actor = actor
+        self.dummy_actor = PPO_Actor(
+            input_dim=actor.state_dim,
+            hidden_dim=actor.hidden_dim,
+            action_dim=actor.action_dim,
+            is_discrete=actor.is_discrete,
+            activation=nn.Tanh(),
+            device=self.device,  # <- important
+        )
         self.extrinsic_critics = extrinsic_critics
         self.intrinsic_critics = intrinsic_critics
 
@@ -152,7 +160,10 @@ class IGTPO_Learner(Base):
                 actor_idx = f"{i}_{j}"
                 actor = policy_dict[actor_idx]
 
-                batch, sample_time = sampler.collect_samples(env, actor, seed)
+                batch, sample_time = sampler.collect_samples(
+                    env, self.dummy_actor, seed
+                )
+
                 # save reward probability
                 self.probabilities[i] += batch["rewards"].mean()
                 (
@@ -395,17 +406,25 @@ class IGTPO_Learner(Base):
 
     def clone_actor(self, actor: nn.Module):
         """
-        Clone the actor safely for multiprocessing without causing CUDA-related hangs.
-        1. Does NOT move original actor off GPU.
-        2. Returns a deepcopy that is on self.device.
+        Safe cloning of actor model for multiprocessing (CUDA-safe if run before CUDA init):
+        - Avoids in-place .to("cpu") on original model.
+        - Does not require original model to move off-device.
         """
-        # Step 1: Temporarily move a deepcopy to CPU (without touching the original)
-        actor_clone = deepcopy(actor).to("cpu")
+        # Create a new clone on CPU
+        actor_clone = PPO_Actor(
+            input_dim=actor.state_dim,
+            hidden_dim=actor.hidden_dim,
+            action_dim=actor.action_dim,
+            is_discrete=actor.is_discrete,
+            activation=nn.Tanh(),
+            device=torch.device("cpu"),  # <- important
+        )
+        # Copy weights from actor (which may be on GPU)
+        actor_clone.load_state_dict({k: v.cpu() for k, v in actor.state_dict().items()})
+        actor_clone.device = self.device
 
-        # Step 2: Move clone to target device
-        actor_clone = actor_clone.to(self.device)
-
-        return actor_clone
+        # Move clone to target device (if needed)
+        return actor_clone.to(self.device)
 
     def intrinsic_rewards(self, states, next_states, eigenvector):
         # get features

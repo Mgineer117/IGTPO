@@ -6,8 +6,8 @@ import uuid
 
 import torch
 import torch.nn as nn
-import wandb
 
+import wandb
 from utils.functions import (
     call_env,
     concat_csv_columnwise_and_delete,
