@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=igtpo-ablation
+#SBATCH --job-name=igtpo
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=IllinoisComputes-GPU
 #SBATCH --nodes=1
