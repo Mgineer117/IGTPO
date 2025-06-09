@@ -318,11 +318,6 @@ class IGTPO_Learner(Base):
             sum(g.pow(2).sum() for g in gradients if g is not None)
         )
 
-        print(
-            i,
-            torch.mean(intrinsic_rewards).item(),
-        )
-
         loss_dict = {
             f"{self.name}/loss/loss": loss.item(),
             f"{self.name}/loss/actor_loss": actor_loss.item(),
