@@ -3,7 +3,7 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=5
+#SBATCH --ntasks=11
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:2
 #SBATCH --time=2-00:00:00
@@ -22,11 +22,16 @@ conda activate igtpo
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 5 & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 10 & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 15 & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 20 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 20 & 
 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.1 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.1 & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.001 & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.0001 & 
+
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.05 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.07 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.09 &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.13 &
 
 # === Wait for all background jobs to finish ===
 wait
