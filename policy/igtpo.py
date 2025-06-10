@@ -44,7 +44,6 @@ class IGTPO_Learner(Base):
         num_inner_updates: int,
         actor_lr: float = 3e-4,
         critic_lr: float = 3e-4,
-        batch_size: int = 256,
         eps_clip: float = 0.2,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
@@ -68,7 +67,6 @@ class IGTPO_Learner(Base):
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
         self.nupdates = nupdates
-        self.batch_size = batch_size
         self.entropy_scaler = entropy_scaler
         self.gamma = gamma
         self.gae = gae
@@ -96,6 +94,8 @@ class IGTPO_Learner(Base):
         self.steps = 0
         self.probabilities = np.array([0.0 for _ in range(self.num_vectors)])
         self.contributing_indices = [str(i) for i in range(self.num_vectors)]
+        self.init_avg_intrinsic_rewards = {}
+        self.final_avg_intrinsic_rewards = {}
         self.to(self.dtype).to(self.device)
 
     def lr_scheduler(self, fraction: float):
@@ -139,7 +139,13 @@ class IGTPO_Learner(Base):
             "dist": metaData["dist"],
         }
 
-    def learn(self, env: gym.Env, outer_sampler: OnlineSampler, inner_sampler: OnlineSampler, seed: int):
+    def learn(
+        self,
+        env: gym.Env,
+        outer_sampler: OnlineSampler,
+        inner_sampler: OnlineSampler,
+        seed: int,
+    ):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
 
@@ -150,13 +156,14 @@ class IGTPO_Learner(Base):
         for i in range(self.num_vectors):
             actor_idx = f"{i}_{0}"
             policy_dict[actor_idx] = self.clone_actor(self.actor)
-        
+
         # === sample for current outer-level policy === #
         init_batch, sample_time = inner_sampler.collect_samples(env, self.actor, seed)
         total_timesteps += init_batch["states"].shape[0]
 
         # === iteration === #
         loss_dict_list = []
+        self.probabilities = np.array([0.0 for _ in range(self.num_vectors)])
         for i in range(self.num_vectors):
             for j in range(self.num_inner_updates):
                 # decide update
@@ -167,14 +174,17 @@ class IGTPO_Learner(Base):
                 future_actor_idx = f"{i}_{j+1}"
                 actor = policy_dict[actor_idx]
 
-                if prefix == "inner" and j == 0:
-                    batch = deepcopy(init_batch)
-                    sample_time = 0
-                    timesteps = 0
-                elif prefix == "inner" and j != 0:
-                    batch, sample_time = inner_sampler.collect_samples(env, actor, seed)
-                    timesteps = batch["states"].shape[0]
-                elif prefix == "outer":
+                if prefix == "inner":
+                    if j == 0:
+                        batch = deepcopy(init_batch)
+                        sample_time = 0
+                        timesteps = 0
+                    else:
+                        batch, sample_time = inner_sampler.collect_samples(
+                            env, actor, seed
+                        )
+                        timesteps = batch["states"].shape[0]
+                else:  # prefix == "outer"
                     batch, sample_time = outer_sampler.collect_samples(env, actor, seed)
                     timesteps = batch["states"].shape[0]
 
@@ -183,13 +193,13 @@ class IGTPO_Learner(Base):
                 # with torch.no_grad():
                 #     states = self.preprocess_state(batch["states"])
                 #     values = self.extrinsic_critics[i](states)
-
                 # self.probabilities[i] = values.cpu().numpy().mean()
                 (
                     loss_dict,
                     update_time,
                     actor_clone,
                     gradients,
+                    avg_intrinsic_rewards,
                 ) = self.learn_model(actor, batch, i, prefix)
 
                 # logging
@@ -197,6 +207,11 @@ class IGTPO_Learner(Base):
 
                 gradient_dict[actor_idx] = gradients
                 policy_dict[future_actor_idx] = actor_clone
+
+                if j == 0:
+                    self.init_avg_intrinsic_rewards[str(i)] = avg_intrinsic_rewards
+                elif j == self.num_inner_updates - 1:
+                    self.final_avg_intrinsic_rewards[str(i)] = avg_intrinsic_rewards
 
                 total_timesteps += timesteps
                 total_sample_time += sample_time
@@ -234,11 +249,26 @@ class IGTPO_Learner(Base):
             grads=gradients,
         )
 
+        # === Logging === #
+        intrinsic_avg_rewards_improvement = 0
+        for i in range(self.num_vectors):
+            intrinsic_avg_rewards_improvement += (
+                self.final_avg_intrinsic_rewards[str(i)]
+                - self.init_avg_intrinsic_rewards[str(i)]
+            )
+        intrinsic_avg_rewards_improvement /= self.num_vectors
+
         loss_dict = self.average_dict_values(loss_dict_list)
+        loss_dict[f"{self.name}/analytics/avg_extrinsic_rewards"] = init_batch[
+            "rewards"
+        ].mean()
+        loss_dict[f"{self.name}/analytics/avg_intrinsic_rewards_improvement"] = (
+            intrinsic_avg_rewards_improvement
+        )
         loss_dict[f"{self.name}/analytics/sample_time"] = total_sample_time
         loss_dict[f"{self.name}/analytics/update_time"] = total_update_time
         loss_dict[f"{self.name}/parameters/num vectors"] = self.num_vectors
-        loss_dict[f"{self.name}/parameters/num_local_updates"] = self.num_inner_updates
+        loss_dict[f"{self.name}/parameters/num_inner_updates"] = self.num_inner_updates
         loss_dict[f"{self.name}/analytics/Contributing Option"] = int(
             most_contributing_index
         )
@@ -294,11 +324,11 @@ class IGTPO_Learner(Base):
         critic_iteration = 5
         extrinsic_critic_loss = None
         intrinsic_critic_loss = None
-
+        batch_size = states.shape[0]
         for critic, optim, returns in zip(critics, critic_optims, critic_targets):
             losses = []
-            perm = torch.randperm(self.batch_size)
-            mb_size = self.batch_size // critic_iteration
+            perm = torch.randperm(batch_size)
+            mb_size = batch_size // critic_iteration
             for j in range(critic_iteration):
                 indices = perm[j * mb_size : (j + 1) * mb_size]
                 critic_loss = self.critic_loss(
@@ -356,12 +386,6 @@ class IGTPO_Learner(Base):
             f"{self.name}/loss/intrinsic_critic_loss": intrinsic_critic_loss,
             f"{self.name}/loss/entropy_loss": entropy_loss.item(),
             f"{self.name}/grad/actor": actor_grad_norm.item(),
-            f"{self.name}/analytics/avg_extrinsic_rewards": torch.mean(
-                extrinsic_rewards
-            ).item(),
-            f"{self.name}/analytics/avg_intrinsic_rewards": torch.mean(
-                intrinsic_rewards
-            ).item(),
         }
         norm_dict = self.compute_weight_norm(
             [actor],
@@ -379,6 +403,7 @@ class IGTPO_Learner(Base):
             update_time,
             actor_clone,
             gradients,
+            torch.mean(intrinsic_rewards).item(),
         )
 
     def learn_outer_level_polocy(

@@ -50,6 +50,7 @@ class IGTPO_Algorithm(nn.Module):
             action_dim=self.args.action_dim,
             episode_len=self.env.max_steps,
             batch_size=self.args.batch_size // 4,
+            verbose=False,
         )
         # === Meta-train using options === #'
         self.define_outer_policy()
@@ -173,7 +174,6 @@ class IGTPO_Algorithm(nn.Module):
             num_inner_updates=self.args.num_inner_updates,
             actor_lr=self.args.igtpo_actor_lr,
             critic_lr=self.args.critic_lr,
-            batch_size=self.args.batch_size,
             eps_clip=self.args.eps_clip,
             entropy_scaler=self.args.entropy_scaler,
             target_kl=self.args.target_kl,
