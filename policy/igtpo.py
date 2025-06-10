@@ -259,22 +259,35 @@ class IGTPO_Learner(Base):
             )
 
         # 1. Learn critic
-        extrinsic_critic_loss = self.critic_loss(
-            self.extrinsic_critics[i], states, extrinsic_returns
-        )
-        intrinsic_critic_loss = self.critic_loss(
-            self.intrinsic_critics[i], states, intrinsic_returns
-        )
-
+        critics = [self.extrinsic_critics[i], self.intrinsic_critics[i]]
         critic_optims = [
             self.extrinsic_critic_optimizers[i],
             self.intrinsic_critic_optimizers[i],
         ]
-        critic_loss = [extrinsic_critic_loss, intrinsic_critic_loss]
-        for optim, loss in zip(critic_optims, critic_loss):
-            optim.zero_grad()
-            loss.backward()
-            optim.step()
+        critic_targets = [extrinsic_returns, intrinsic_returns]
+        critic_iteration = 10
+        extrinsic_critic_loss = None
+        intrinsic_critic_loss = None
+
+        for critic, optim, returns in zip(critics, critic_optims, critic_targets):
+            losses = []
+            perm = torch.randperm(self.batch_size)
+            mb_size = self.batch_size // critic_iteration
+            for j in range(critic_iteration):
+                indices = perm[j * mb_size : (j + 1) * mb_size]
+                critic_loss = self.critic_loss(
+                    critic, states[indices], returns[indices]
+                )
+                optim.zero_grad()
+                critic_loss.backward()
+                optim.step()
+                losses.append(critic_loss.item())
+
+            avg_loss = sum(losses) / len(losses)
+            if extrinsic_critic_loss is None:
+                extrinsic_critic_loss = avg_loss
+            else:
+                intrinsic_critic_loss = avg_loss
 
         # 2. Learn actor
         actor_clone = self.clone_actor(actor)  # clone for future update

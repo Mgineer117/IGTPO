@@ -175,7 +175,7 @@ class PSNE_Learner(Base):
             if not success:
                 set_flat_params(self.actor, old_params)
 
-        self.lr_scheduler()
+        # self.lr_scheduler()
         # given the update of new actor, sample a actor for exploration
         self.sample_policy()
         self.states = states

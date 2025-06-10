@@ -157,13 +157,10 @@ class OnlineSampler(Base):
         for p in processes:
             p.join(timeout=max(0.1, 10 - (time.time() - start_time)))
             if p.is_alive():
-                print(
-                    f"[Warning] Process {p.pid} still alive after timeout. Terminating..."
-                )
                 p.terminate()
                 p.join()  # Force cleanup
-            if p.exitcode != 0:
-                print(f"[Error] Process {p.pid} exited with code {p.exitcode}")
+            # if p.exitcode != 0:
+            #     print(f"[Error] Process {p.pid} exited with code {p.exitcode}")
 
         # ✅ Merge memory
         memory = {}

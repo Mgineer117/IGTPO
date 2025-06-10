@@ -196,7 +196,7 @@ class TRPO_Learner(Base):
         update_time = time.time() - t0
 
         # reduce target_kl for next iteration
-        self.lr_scheduler()
+        # self.lr_scheduler()
 
         return loss_dict, timesteps, update_time
 

@@ -84,7 +84,7 @@ class IGTPOTrainer:
 
         # Train loop
         eval_idx = 0
-        prune_idx = 0
+        prune_idx = int(self.timesteps / 2) / self.prune_interval
         trim_idx = int(self.timesteps / 2) / self.trim_interval
 
         with tqdm(
@@ -103,12 +103,12 @@ class IGTPOTrainer:
                 pbar.update(timesteps)
 
                 # === reduce target_kl === #
-                self.policy.lr_scheduler(
-                    current_step / (self.timesteps + self.init_timesteps)
-                )
+                # self.policy.lr_scheduler(
+                #     current_step / (self.timesteps + self.init_timesteps)
+                # )
 
                 # === PRUNE TWIG === #
-                if current_step > self.prune_interval * (prune_idx + 1):
+                if current_step > self.prune_interval * prune_idx:
                     self.policy.prune()
                     prune_idx += 1
 
