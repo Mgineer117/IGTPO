@@ -326,8 +326,8 @@ class IGTPO_Learner(Base):
         loss_dict = {
             f"{self.name}/loss/loss": loss.item(),
             f"{self.name}/loss/actor_loss": actor_loss.item(),
-            f"{self.name}/loss/extrinsic_critic_loss": extrinsic_critic_loss.item(),
-            f"{self.name}/loss/intrinsic_critic_loss": intrinsic_critic_loss.item(),
+            f"{self.name}/loss/extrinsic_critic_loss": extrinsic_critic_loss,
+            f"{self.name}/loss/intrinsic_critic_loss": intrinsic_critic_loss,
             f"{self.name}/loss/entropy_loss": entropy_loss.item(),
             f"{self.name}/grad/actor": actor_grad_norm.item(),
             f"{self.name}/analytics/avg_extrinsic_rewards": torch.mean(
