@@ -193,13 +193,13 @@ class IGTPO_Learner(Base):
             outer_gradients.append(gradients)
 
         # Average across vectors
-        # outer_gradients_transposed = list(zip(*outer_gradients))  # Group by parameter
-        # gradients = tuple(
-        #     torch.mean(torch.stack(grads_per_param), dim=0)
-        #     for grads_per_param in outer_gradients_transposed
-        # )
+        outer_gradients_transposed = list(zip(*outer_gradients))  # Group by parameter
+        gradients = tuple(
+            torch.mean(torch.stack(grads_per_param), dim=0)
+            for grads_per_param in outer_gradients_transposed
+        )
 
-        gradients = outer_gradients[argmax_idx]
+        # gradients = outer_gradients[argmax_idx]
 
         # === TRPO update === #
         batch, sample_time = sampler.collect_samples(env, self.actor, seed)
