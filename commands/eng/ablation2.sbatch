@@ -19,10 +19,6 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===  
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --batch-size 1024 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --batch-size 2048 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --batch-size 8192 & 
-
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.05 &
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.07 &
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.09 &
