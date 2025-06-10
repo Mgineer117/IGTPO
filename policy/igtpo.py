@@ -112,6 +112,16 @@ class IGTPO_Learner(Base):
             del self.intrinsic_critic_optimizers[least_contributing_index]
 
             self.probabilities = np.delete(self.probabilities, least_contributing_index)
+            self.eigenvectors = torch.cat(
+                (
+                    self.eigenvectors[:least_contributing_index],  # rows before index 4
+                    self.eigenvectors[
+                        least_contributing_index + 1 :
+                    ],  # rows after index 4
+                ),
+                dim=0,
+            )
+
             self.num_vectors -= 1
 
     def trim(self):
@@ -193,13 +203,13 @@ class IGTPO_Learner(Base):
             outer_gradients.append(gradients)
 
         # Average across vectors
-        # outer_gradients_transposed = list(zip(*outer_gradients))  # Group by parameter
-        # gradients = tuple(
-        #     torch.mean(torch.stack(grads_per_param), dim=0)
-        #     for grads_per_param in outer_gradients_transposed
-        # )
+        outer_gradients_transposed = list(zip(*outer_gradients))  # Group by parameter
+        gradients = tuple(
+            torch.mean(torch.stack(grads_per_param), dim=0)
+            for grads_per_param in outer_gradients_transposed
+        )
 
-        gradients = outer_gradients[argmax_idx]
+        # gradients = outer_gradients[argmax_idx]
 
         # === TRPO update === #
         batch, sample_time = sampler.collect_samples(env, self.actor, seed)
@@ -265,7 +275,7 @@ class IGTPO_Learner(Base):
             self.intrinsic_critic_optimizers[i],
         ]
         critic_targets = [extrinsic_returns, intrinsic_returns]
-        critic_iteration = 10
+        critic_iteration = 5
         extrinsic_critic_loss = None
         intrinsic_critic_loss = None
 
