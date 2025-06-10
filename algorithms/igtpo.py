@@ -39,18 +39,25 @@ class IGTPO_Algorithm(nn.Module):
         self.define_eigenvectors()
 
         # === Sampler === #
-        sampler = OnlineSampler(
+        outer_sampler = OnlineSampler(
             state_dim=self.args.state_dim,
             action_dim=self.args.action_dim,
             episode_len=self.env.max_steps,
             batch_size=self.args.batch_size,
+        )
+        inner_sampler = OnlineSampler(
+            state_dim=self.args.state_dim,
+            action_dim=self.args.action_dim,
+            episode_len=self.env.max_steps,
+            batch_size=self.args.batch_size // 4,
         )
         # === Meta-train using options === #'
         self.define_outer_policy()
         trainer = IGTPOTrainer(
             env=self.env,
             policy=self.policy,
-            sampler=sampler,
+            outer_sampler=outer_sampler,
+            inner_sampler=inner_sampler,
             logger=self.logger,
             writer=self.writer,
             init_timesteps=self.current_timesteps,

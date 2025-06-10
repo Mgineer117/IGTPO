@@ -139,7 +139,7 @@ class IGTPO_Learner(Base):
             "dist": metaData["dist"],
         }
 
-    def learn(self, env: gym.Env, sampler: OnlineSampler, seed: int):
+    def learn(self, env: gym.Env, outer_sampler: OnlineSampler, inner_sampler: OnlineSampler, seed: int):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
 
@@ -150,8 +150,12 @@ class IGTPO_Learner(Base):
         for i in range(self.num_vectors):
             actor_idx = f"{i}_{0}"
             policy_dict[actor_idx] = self.clone_actor(self.actor)
+        
+        # === sample for current outer-level policy === #
+        init_batch, sample_time = inner_sampler.collect_samples(env, self.actor, seed)
+        total_timesteps += init_batch["states"].shape[0]
 
-        # === first iteration === #
+        # === iteration === #
         loss_dict_list = []
         for i in range(self.num_vectors):
             for j in range(self.num_inner_updates):
@@ -161,15 +165,28 @@ class IGTPO_Learner(Base):
                 # choose actor
                 actor_idx = f"{i}_{j}"
                 future_actor_idx = f"{i}_{j+1}"
-
                 actor = policy_dict[actor_idx]
-                batch, sample_time = sampler.collect_samples(env, actor, seed)
+
+                if prefix == "inner" and j == 0:
+                    batch = deepcopy(init_batch)
+                    sample_time = 0
+                    timesteps = 0
+                elif prefix == "inner" and j != 0:
+                    batch, sample_time = inner_sampler.collect_samples(env, actor, seed)
+                    timesteps = batch["states"].shape[0]
+                elif prefix == "outer":
+                    batch, sample_time = outer_sampler.collect_samples(env, actor, seed)
+                    timesteps = batch["states"].shape[0]
 
                 # save reward probability
                 self.probabilities[i] += batch["rewards"].mean()
+                # with torch.no_grad():
+                #     states = self.preprocess_state(batch["states"])
+                #     values = self.extrinsic_critics[i](states)
+
+                # self.probabilities[i] = values.cpu().numpy().mean()
                 (
                     loss_dict,
-                    timesteps,
                     update_time,
                     actor_clone,
                     gradients,
@@ -212,9 +229,8 @@ class IGTPO_Learner(Base):
         # gradients = outer_gradients[argmax_idx]
 
         # === TRPO update === #
-        batch, sample_time = sampler.collect_samples(env, self.actor, seed)
         backtrack_iter, backtrack_success = self.learn_outer_level_polocy(
-            states=batch["states"],
+            states=init_batch["states"],
             grads=gradients,
         )
 
@@ -356,13 +372,10 @@ class IGTPO_Learner(Base):
         loss_dict.update(norm_dict)
 
         self.eval()
-
-        timesteps = states.shape[0]
         update_time = time.time() - t0
 
         return (
             loss_dict,
-            timesteps,
             update_time,
             actor_clone,
             gradients,

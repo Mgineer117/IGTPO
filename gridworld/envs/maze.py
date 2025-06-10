@@ -35,7 +35,7 @@ class Maze(MultiGridEnv):
     def __init__(
         self,
         grid_type: int = 0,
-        max_steps: int = 200,
+        max_steps: int = 300,
         highlight_visible_cells: bool | None = False,
         tile_size: int = 10,
         state_representation: str = "tensor",

@@ -37,7 +37,8 @@ class IGTPOTrainer:
         self,
         env: gym.Env,
         policy: Base,
-        sampler: OnlineSampler,
+        outer_sampler: OnlineSampler,
+        inner_sampler: OnlineSampler,
         logger: WandbLogger,
         writer: SummaryWriter,
         init_timesteps: int = 0,
@@ -51,7 +52,8 @@ class IGTPOTrainer:
         self.env = env
         self.policy = policy
 
-        self.sampler = sampler
+        self.outer_sampler = outer_sampler
+        self.inner_sampler = inner_sampler
         self.eval_num = eval_num
 
         self.logger = logger
@@ -94,7 +96,7 @@ class IGTPOTrainer:
         ) as pbar:
             while pbar.n < self.timesteps + self.init_timesteps:
                 loss_dict, timesteps = self.policy.learn(
-                    self.env, self.sampler, self.seed
+                    self.env, self.outer_sampler, self.inner_sampler, self.seed
                 )
                 current_step = pbar.n + timesteps
 
