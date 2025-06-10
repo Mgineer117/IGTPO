@@ -9,6 +9,6 @@
     "target_kl": 0.03,
     "num_options": 8,
     "num_minibatch": 4,
-    "minibatch_size": 512,
-    "batch_size": 2048
+    "minibatch_size": 1024,
+    "batch_size": 4096
 }

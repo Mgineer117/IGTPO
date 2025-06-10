@@ -38,7 +38,7 @@ class Base:
         The remainder of zero arrays will be cut in the end.
         np.nan makes it easy to debug
         """
-        batch_size = 2 * self.episode_len
+        batch_size = self.batch_size_for_worker + self.episode_len
         data = dict(
             states=np.full(((batch_size,) + self.state_dim), np.nan, dtype=np.float32),
             next_states=np.full(
@@ -80,6 +80,7 @@ class OnlineSampler(Base):
             num_cores (int | None): Override for max cores to use.
             verbose (bool): Whether to print initialization info.
         """
+        self.batch_size_for_worker = 2 * episode_len
         super().__init__(
             state_dim=state_dim,
             action_dim=action_dim,
@@ -204,7 +205,7 @@ class OnlineSampler(Base):
         data = self.get_reset_data()  # allocate memory
 
         current_step = 0
-        while current_step < self.episode_len:
+        while current_step < self.batch_size_for_worker:
             # env initialization
             options = {"random_init_pos": random_init_pos}
             state, _ = env.reset(seed=seed, options=options)
@@ -303,7 +304,7 @@ class HLSampler(OnlineSampler):
         data = self.get_reset_data()  # allocate memory
 
         current_step = 0
-        while current_step < self.episode_len:
+        while current_step < self.batch_size_for_worker:
             # env initialization
             options = {"random_init_pos": random_init_pos}
             state, _ = env.reset(seed=seed, options=options)
