@@ -156,7 +156,7 @@ def get_vector(env, extractor, args):
         state_dim=args.state_dim,
         action_dim=args.action_dim,
         episode_len=args.episode_len,
-        batch_size=8192,
+        batch_size=100 * args.episode_len,
         verbose=False,
     )
 

@@ -35,7 +35,6 @@ class Maze(MultiGridEnv):
     def __init__(
         self,
         grid_type: int = 0,
-        max_steps: int = 300,
         highlight_visible_cells: bool | None = False,
         tile_size: int = 10,
         state_representation: str = "tensor",
@@ -51,7 +50,7 @@ class Maze(MultiGridEnv):
         else:
             self.grid_type = grid_type
 
-        self.max_steps = max_steps
+        self.max_steps = 300 if grid_type == 0 else 50
         self.world = GridWorld
         self.actions_set = GridActions
 
@@ -68,8 +67,8 @@ class Maze(MultiGridEnv):
         ]
 
         # Define positions for goals and agents
-        self.goal_positions = [(15, 8)]
-        self.agent_positions = [(3, 9)]
+        self.goal_positions = [(15, 8), (3, 7)]
+        self.agent_positions = [(3, 9), (5, 1)]
 
         # Explicit maze structure based on the image
         self.map = [
@@ -93,7 +92,20 @@ class Maze(MultiGridEnv):
                 "# # #      # #    #",
                 "#   #        #    #",
                 "###################",
-            ]
+            ],
+            [
+                "###########",
+                "#     #   #",
+                "# ### # # #",
+                "#   # # # #",
+                "### # ### #",
+                "# # # #   #",
+                "# # # # ###",
+                "# # # #   #",
+                "# ### ### #",
+                "#         #",
+                "###########",
+            ],
         ]
 
         self.width = len(self.map[self.grid_type][0])
@@ -102,7 +114,7 @@ class Maze(MultiGridEnv):
         super().__init__(
             width=self.width,
             height=self.height,
-            max_steps=max_steps,
+            max_steps=self.max_steps,
             see_through_walls=see_through_walls,
             agents=self.agents,
             actions_set=self.actions_set,
