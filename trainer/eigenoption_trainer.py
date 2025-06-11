@@ -184,7 +184,7 @@ class EigenOptionTrainer:
                 self.write_log(loss_dict, step=current_step)
 
                 #### EVALUATIONS ####
-                if current_step >= self.eval_interval * eval_idx:
+                if current_step >= self.eval_interval * (eval_idx + 1):
                     ### Eval Loop
                     self.hl_policy.eval()
                     eval_idx += 1

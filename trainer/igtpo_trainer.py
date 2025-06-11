@@ -89,7 +89,7 @@ class IGTPOTrainer:
         # Train loop
         eval_idx = 0
         prune_idx = int(self.timesteps / 2) / self.prune_interval
-        trim_idx = int(self.timesteps / 2) / self.trim_interval
+        trim_idx = 0  # int(self.timesteps / 2) / self.trim_interval
 
         with tqdm(
             total=self.timesteps + self.init_timesteps,
@@ -113,17 +113,17 @@ class IGTPOTrainer:
                 # )
 
                 # === PRUNE TWIG === #
-                if current_step > self.prune_interval * prune_idx:
-                    self.policy.prune()
-                    prune_idx += 1
+                # if current_step > self.prune_interval * (prune_idx + 1):
+                #     self.policy.prune()
+                #     prune_idx += 1
 
                 # === TRIM TWIG === #
-                # if current_step > self.trim_interval * trim_idx:
-                #     self.policy.trim()
-                #     trim_idx += 1
+                if current_step > self.trim_interval * (trim_idx + 1):
+                    self.policy.trim()
+                    trim_idx += 1
 
                 # === EVALUATIONS === #
-                if current_step >= self.eval_interval * eval_idx:
+                if current_step >= self.eval_interval * (eval_idx + 1):
                     ### Eval Loop
                     self.policy.eval()
                     eval_idx += 1

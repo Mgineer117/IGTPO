@@ -92,7 +92,7 @@ class Trainer:
                 self.write_log(loss_dict, step=step)
 
                 #### EVALUATIONS ####
-                if step >= self.eval_interval * eval_idx:
+                if step >= self.eval_interval * (eval_idx + 1):
                     ### Eval Loop
                     self.policy.eval()
                     eval_idx += 1
