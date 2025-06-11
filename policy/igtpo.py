@@ -189,11 +189,11 @@ class IGTPO_Learner(Base):
                     timesteps = batch["states"].shape[0]
 
                 # save reward probability
-                self.probabilities[i] += batch["rewards"].mean()
-                # with torch.no_grad():
-                #     states = self.preprocess_state(batch["states"])
-                #     values = self.extrinsic_critics[i](states)
-                # self.probabilities[i] = values.cpu().numpy().mean()
+                # self.probabilities[i] += batch["rewards"].mean()
+                with torch.no_grad():
+                    states = self.preprocess_state(batch["states"])
+                    values = self.extrinsic_critics[i](states)
+                self.probabilities[i] = values.cpu().numpy().mean()
                 (
                     loss_dict,
                     update_time,

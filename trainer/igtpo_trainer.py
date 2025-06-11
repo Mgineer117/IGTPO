@@ -5,9 +5,11 @@ from collections import deque
 from copy import deepcopy
 
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from torch.autograd import grad
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -101,6 +103,7 @@ class IGTPOTrainer:
                 current_step = pbar.n + timesteps
 
                 # === Update progress === #
+                self.policy.probabilities  # (n,) ndarray
                 self.write_log(loss_dict, current_step)
                 pbar.update(timesteps)
 
@@ -128,7 +131,34 @@ class IGTPOTrainer:
                     eval_dict, running_video = self.evaluate()
 
                     # Manual logging
+                    fig, ax = plt.subplots(figsize=(8, 6))
+                    ax.stem(
+                        np.arange(len(self.policy.probabilities)),
+                        self.policy.probabilities,
+                    )
+
+                    # Convert figure to a NumPy array
+                    canvas = FigureCanvas(fig)
+                    canvas.draw()
+
+                    # Use buffer_rgba instead of tostring_rgb
+                    img = np.frombuffer(canvas.buffer_rgba(), dtype="uint8")
+                    img = img.reshape(
+                        canvas.get_width_height()[::-1] + (4,)
+                    )  # (H, W, 4)
+
+                    # Drop the alpha channel to get RGB
+                    img = img[:, :, :3]  # Shape: (H, W, 3)
+
+                    plt.close()
+
                     self.write_log(eval_dict, step=current_step, eval_log=True)
+                    self.write_image(
+                        image=img,
+                        step=current_step,
+                        logdir=f"Image",
+                        name="value estimate",
+                    )
                     self.write_video(
                         running_video,
                         step=current_step,
