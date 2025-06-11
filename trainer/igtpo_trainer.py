@@ -118,9 +118,9 @@ class IGTPOTrainer:
                     prune_idx += 1
 
                 # === TRIM TWIG === #
-                if current_step > self.trim_interval * trim_idx:
-                    self.policy.trim()
-                    trim_idx += 1
+                # if current_step > self.trim_interval * trim_idx:
+                #     self.policy.trim()
+                #     trim_idx += 1
 
                 # === EVALUATIONS === #
                 if current_step >= self.eval_interval * eval_idx:
