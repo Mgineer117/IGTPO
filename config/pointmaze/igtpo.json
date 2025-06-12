@@ -3,7 +3,7 @@
     "timesteps": 2.5e7,
     "eps_clip": 0.2,
     "K_epochs": 5,
-    "num_inner_updates": 20,
+    "num_inner_updates": 15,
     "target_kl": 0.03,
     "num_options": 4,
     "num_minibatch": 4,
