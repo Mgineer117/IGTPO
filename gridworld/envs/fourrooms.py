@@ -60,7 +60,7 @@ class FourRooms(MultiGridEnv):
     def __init__(
         self,
         grid_type: int = 0,
-        max_steps: int = 100,
+        max_steps: int = 50,
         highlight_visible_cells: bool | None = False,
         tile_size: int = 10,
         state_representation: str = "tensor",

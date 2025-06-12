@@ -73,14 +73,6 @@ class EigenOption_Learner(Base):
     def lr_lambda(self, step):
         return 1.0 - float(step) / float(self.nupdates)
 
-    def to_device(self, device):
-        self.device = device
-        for policy in self.policies:
-            if policy is not None:
-                policy.device = device
-
-        self.to(device)
-
     def forward(
         self, state: np.ndarray, option_idx: int | None, deterministic: bool = False
     ):
@@ -121,6 +113,8 @@ class EigenOption_Learner(Base):
         """Performs a single training step using PPO, incorporating all reference training steps."""
         self.train()
         t0 = time.time()
+
+        self.record_state_visitations(batch)
 
         # Ingredients: Convert batch data to tensors
         states = self.preprocess_state(batch["states"])

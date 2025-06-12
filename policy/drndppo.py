@@ -139,6 +139,8 @@ class DRNDPPO_Learner(Base):
         self.train()
         t0 = time.time()
 
+        self.record_state_visitations(batch)
+
         # Ingredients: Convert batch data to tensors
         states = self.preprocess_state(batch["states"])
         next_states = self.preprocess_state(batch["next_states"])

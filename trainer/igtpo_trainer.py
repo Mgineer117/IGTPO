@@ -67,9 +67,7 @@ class IGTPOTrainer:
 
         self.log_interval = log_interval
         self.prune_interval = int((self.timesteps / 2) / self.policy.num_vectors)
-        self.trim_interval = int(
-            (self.timesteps / 2) / (self.policy.num_inner_updates - 2)
-        )
+        self.trim_interval = int(self.timesteps / (self.policy.num_inner_updates - 2))
         self.eval_interval = int(self.timesteps / self.log_interval)
 
         # initialize the essential training components
@@ -151,6 +149,18 @@ class IGTPOTrainer:
                     img = img[:, :, :3]  # Shape: (H, W, 3)
 
                     plt.close()
+
+                    if self.policy.state_visitation is not None:
+                        visitation_map = self.policy.state_visitation
+                        vmin, vmax = visitation_map.min(), visitation_map.max()
+                        visitation_map = (visitation_map - vmin) / (vmax - vmin + 1e-8)
+                        visitation_map = self.visitation_to_rgb(visitation_map)
+                        self.write_image(
+                            image=visitation_map,
+                            step=current_step,
+                            logdir=f"Image",
+                            name="visitation map",
+                        )
 
                     self.write_log(eval_dict, step=current_step, eval_log=True)
                     self.write_image(
@@ -274,3 +284,28 @@ class IGTPOTrainer:
                 self.last_min_return_std = np.mean(self.last_return_std)
         else:
             raise ValueError("Error: Model is not identifiable!!!")
+
+    def visitation_to_rgb(self, visitation_map: np.ndarray) -> np.ndarray:
+        visitation_map = np.squeeze(visitation_map)  # Make sure it's 2D
+        H, W = visitation_map.shape
+
+        rgb_map = np.ones((H, W, 3), dtype=np.float32)  # Start with white
+
+        # Zero visitation → gray
+        zero_mask = visitation_map == 0
+        rgb_map[zero_mask] = [0.5, 0.5, 0.5]
+
+        # Nonzero visitation → white → blue gradient
+        nonzero_mask = visitation_map > 0
+        blue_intensity = visitation_map[nonzero_mask]
+
+        rgb_map[nonzero_mask] = np.stack(
+            [
+                1.0 - blue_intensity,  # Red
+                1.0 - blue_intensity,  # Green
+                np.ones_like(blue_intensity),  # Blue
+            ],
+            axis=-1,
+        )
+
+        return rgb_map

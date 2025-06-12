@@ -47,6 +47,7 @@ class IGTPO_Learner(Base):
         eps_clip: float = 0.2,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
+        l2_reg: float = 1e-8,
         gamma: float = 0.99,
         gae: float = 0.9,
         device: str = "cpu",
@@ -73,6 +74,7 @@ class IGTPO_Learner(Base):
         self.eps_clip = eps_clip
         self.init_target_kl = target_kl
         self.target_kl = target_kl
+        self.l2_reg = l2_reg
 
         # define nn.Module
         self.extractor = extractor
@@ -96,6 +98,7 @@ class IGTPO_Learner(Base):
         self.contributing_indices = [str(i) for i in range(self.num_vectors)]
         self.init_avg_intrinsic_rewards = {}
         self.final_avg_intrinsic_rewards = {}
+
         self.to(self.dtype).to(self.device)
 
     def lr_scheduler(self, fraction: float):
@@ -187,6 +190,8 @@ class IGTPO_Learner(Base):
                 else:  # prefix == "outer"
                     batch, sample_time = outer_sampler.collect_samples(env, actor, seed)
                     timesteps = batch["states"].shape[0]
+
+                self.record_state_visitations(batch)
 
                 # save reward probability
                 # self.probabilities[i] += batch["rewards"].mean()
@@ -518,6 +523,10 @@ class IGTPO_Learner(Base):
     ):
         values = critic(states)
         value_loss = self.mse_loss(values, returns)
+
+        l2_loss = sum(param.pow(2).sum() for param in critic.parameters()) * self.l2_reg
+
+        value_loss += l2_loss
 
         return value_loss
 

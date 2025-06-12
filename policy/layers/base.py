@@ -18,6 +18,8 @@ class Base(nn.Module):
         self.mse_loss = F.mse_loss
         self.huber_loss = F.smooth_l1_loss
 
+        self.state_visitation = None
+
     def print_parameter_devices(self, model):
         for name, param in model.named_parameters():
             print(f"{name}: {param.device}")
@@ -29,6 +31,12 @@ class Base(nn.Module):
             self.actor.device = device
         if hasattr(self, "sampled_actor"):
             self.sampled_actor.device = device
+        if hasattr(self, "policies"):
+            for policy in self.policies:
+                if policy is not None:
+                    policy.device = device
+                    if hasattr(policy, "actor"):
+                        policy.actor.device = device
         self.to(device)
 
     def preprocess_state(self, state: torch.Tensor | np.ndarray) -> torch.Tensor:
@@ -127,3 +135,31 @@ class Base(nn.Module):
         """
         flat_grad = torch.cat([g.view(-1) for g in grads])
         return flat_grad
+
+    def record_state_visitations(self, batch: dict):
+        wall_idx = 2
+        agent_idx = 10
+        goal_idx = 8
+
+        state_sample = batch["states"][0]
+
+        if self.actor.is_discrete and len(state_sample.shape) == 3:
+            if self.state_visitation is None:
+                self.state_visitation = np.zeros_like(state_sample, dtype=np.float32)
+
+            # Mask out wall and goal
+            mask = (state_sample == wall_idx) | (state_sample == goal_idx)
+
+            # Compute where agent is
+            agent_mask = (batch["states"] == agent_idx).astype(np.float32)
+            visitation = agent_mask.mean(0) + 1e-8  # average across batch
+            visitation[mask] = 0.0  # remove static or irrelevant regions
+
+            # EMA update
+            alpha = 0.01
+            if self.state_visitation is None:
+                self.state_visitation = visitation.copy()
+            else:
+                self.state_visitation = (
+                    alpha * visitation + (1 - alpha) * self.state_visitation
+                )
