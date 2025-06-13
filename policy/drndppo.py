@@ -18,7 +18,7 @@ class DRNDPPO_Learner(Base):
         critic: PPO_Critic,
         drnd_model: nn.Module,
         drnd_critic: PPO_Critic,
-        nupdates: int,
+        nupdates: int | None = None,
         actor_lr: float = 3e-4,
         critic_lr: float = 5e-4,
         drnd_lr: float = 3e-4,
@@ -87,7 +87,10 @@ class DRNDPPO_Learner(Base):
         self.to(self.dtype).to(self.device)
 
     def lr_lambda(self, step):
-        return 1.0 - float(step) / float(self.nupdates)
+        if self.nupdates is not None:
+            return 1.0 - float(step) / float(self.nupdates)
+        else:
+            return 1.0
 
     def forward(self, state: np.ndarray, deterministic: bool = False):
         state = self.preprocess_state(state)

@@ -100,17 +100,23 @@ def estimate_advantages(
 def get_extractor(args):
     from extractor.base.cnn import CNN
     from extractor.base.vae import VAE
-    from extractor.extractor import DummyExtractor, Extractor
+    from extractor.extractor import ALLO, DummyExtractor, Extractor
     from utils.cnn_architecture import get_cnn_architecture
 
     env_name, version = args.env_name.split("-")
 
     if env_name in ("fourrooms", "ninerooms", "maze"):
+        feature_dim = (
+            args.num_options
+            if args.intrinsic_reward_mode == "allo"
+            else args.feature_dim
+        )
+
         if args.extractor_type == "VAE":
             feature_network = VAE(
                 state_dim=args.state_dim,
                 action_dim=args.action_dim,
-                feature_dim=args.feature_dim,
+                feature_dim=feature_dim,
                 encoder_fc_dim=[512, 512, 256, 256],
                 decoder_fc_dim=[256, 256, 512, 512],
                 activation=nn.Tanh(),
@@ -121,7 +127,7 @@ def get_extractor(args):
             feature_network = CNN(
                 state_dim=args.state_dim,
                 action_dim=args.action_dim,
-                feature_dim=args.feature_dim,
+                feature_dim=feature_dim,
                 encoder_architecture=encoder_architecture,
                 decoder_architecture=decoder_architecture,
                 activation=nn.Tanh(),
@@ -130,13 +136,27 @@ def get_extractor(args):
         else:
             raise NotImplementedError(f"{args.extractor_type} is not implemented")
 
-        extractor = Extractor(
-            network=feature_network,
-            extractor_lr=args.extractor_lr,
-            epochs=args.extractor_epochs,
-            minibatch_size=args.minibatch_size,
-            device=args.device,
-        )
+        if args.intrinsic_reward_mode == "allo":
+            extractor = ALLO(
+                d=feature_dim,
+                network=feature_network,
+                extractor_lr=args.extractor_lr,
+                epochs=args.extractor_epochs,
+                minibatch_size=args.minibatch_size,
+                device=args.device,
+            )
+        elif args.intrinsic_reward_mode == "eigenpurpose":
+            extractor = Extractor(
+                network=feature_network,
+                extractor_lr=args.extractor_lr,
+                epochs=args.extractor_epochs,
+                minibatch_size=args.minibatch_size,
+                device=args.device,
+            )
+        else:
+            raise NotImplementedError(
+                f"intrinsic reward mode {args.intrinsic_reward_mode} is not available."
+            )
     elif env_name == "pointmaze":
         # continuous space has pretty small dimension
         # indices is for feature selection of state
@@ -172,28 +192,48 @@ def get_vector(env, extractor, args):
     with torch.no_grad():
         features, _ = extractor(data)
 
-    # perform a spectral analysis
-    cov = torch.cov(features.T)
-    eigval, eigvec = torch.linalg.eigh(cov)
+    if args.intrinsic_reward_mode == "eigenpurpose":
+        # Covariance-based PCA
+        cov = torch.cov(features.T)
+        eigval, eigvec = torch.linalg.eigh(cov)
+        sorted_indices = torch.argsort(eigval, descending=True)
+        eigval = eigval[sorted_indices]
+        eigvec = eigvec[:, sorted_indices]
+        eigvec_row = eigvec.T.real
+        eig_vec_row = eigvec_row[: int(args.num_options / 2)]
+        eigenvectors = torch.cat([eig_vec_row, -eig_vec_row], dim=0)
+        eigenvectors = eigenvectors.cpu().numpy()
 
-    eigval = eigval.real.to(args.device)  # Ensure eigenvalues are real
-    eigvec = eigvec.to(args.device)  # Ensure eigenvectors are on the correct device
+    elif args.intrinsic_reward_mode == "allo":
+        from scipy.linalg import eigh
+        from scipy.spatial.distance import cdist
 
-    # print(eigval)
+        # Step 1: Extract features -> features: [n, d]
+        phi = features.detach().cpu().numpy()  # shape: (n, d)
 
-    # Sort eigenvalues in descending order and get indices
-    sorted_indices = torch.argsort(eigval, descending=True)
+        # Step 2: Compute pairwise distances
+        distances = cdist(phi, phi, metric="euclidean")  # shape: (n, n)
 
-    # Reorder eigenvalues and eigenvectors
-    eigval = eigval[sorted_indices]
-    eigvec = eigvec[:, sorted_indices]
+        # Step 3: Convert to similarity matrix using RBF kernel
+        sigma = np.mean(distances)  # bandwidth
+        W = np.exp(-(distances**2) / (2 * sigma**2))  # shape: (n, n)
 
-    # If you want row-wise eigenvectors (each row is one eigenvector)
-    eigvec_row = eigvec.T.real  # shape: [n_rows, n_cols]
-    eig_vec_row = eigvec_row[: int(args.num_options / 2)]
-    eigenvectors = torch.concatenate([eig_vec_row, -eig_vec_row], dim=0)
+        # Step 4: Build degree matrix and Laplacian
+        D = np.diag(W.sum(axis=1))
+        L = D - W  # Unnormalized Laplacian
 
-    eigenvectors = eigenvectors.cpu().numpy()
+        # Step 5: Eigen-decomposition of Laplacian
+        eigvals, eigvecs = eigh(L)  # ascending order
+
+        # Step 6: Use the smallest non-trivial eigenvectors (e.g., from index 1)
+        eigvec_row = torch.from_numpy(
+            eigvecs[:, 1 : 1 + int(args.num_options / 2)].T
+        ).float()  # shape: [k, n]
+        eig_vec_row = torch.cat([eigvec_row, -eigvec_row], dim=0)
+        eigenvectors = eig_vec_row.numpy()  # shape: [num_options, n]
+
+    else:
+        raise NotImplementedError(f"Mode {args.intrinsic_reward_mode} not supported.")
 
     heatmaps = env.get_rewards_heatmap(extractor, eigenvectors)
 

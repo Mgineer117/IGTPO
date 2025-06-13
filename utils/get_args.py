@@ -102,7 +102,7 @@ def get_args():
         help="Number of training epochs.",
     )
     parser.add_argument(
-        "--log-interval", type=int, default=25, help="Number of training epochs."
+        "--log-interval", type=int, default=200, help="Number of training epochs."
     )
     parser.add_argument(
         "--eval-num", type=int, default=10, help="Number of training epochs."
@@ -129,6 +129,12 @@ def get_args():
     )
     parser.add_argument(
         "--entropy-scaler", type=float, default=1e-3, help="Base learning rate."
+    )
+    parser.add_argument(
+        "--intrinsic-reward-mode",
+        type=str,
+        default="eigenpurpose",
+        help="Base learning rate.",
     )
     parser.add_argument("--gamma", type=float, default=0.99, help="Base learning rate.")
     parser.add_argument(

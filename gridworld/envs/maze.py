@@ -50,7 +50,7 @@ class Maze(MultiGridEnv):
         else:
             self.grid_type = grid_type
 
-        self.max_steps = 300 if grid_type == 0 else 50
+        self.max_steps = 200 if grid_type == 0 else 50
         self.world = GridWorld
         self.actions_set = GridActions
 
@@ -74,20 +74,20 @@ class Maze(MultiGridEnv):
         self.map = [
             [
                 "###################",
-                "#             #   #",
+                "#                 #",
                 "# ####### ##### # #",
                 "#               # #",
                 "# ####### ####### #",
                 "# #     # #       #",
                 "# #     # #       #",
                 "# #     # #       #",
-                "# #     # ####### #",
+                "# #     # # #######",
                 "#       #         #",
-                "# ##### # #########",
-                "# #          #    #",
-                "# # ######## #    #",
+                "# ##### # ####### #",
+                "# #               #",
+                "# # ######## # ####",
                 "# #        # #    #",
-                "# # #      #      #",
+                "# # #      # #    #",
                 "# # #      # #    #",
                 "# # #      # #    #",
                 "#   #        #    #",
@@ -376,7 +376,6 @@ class Maze(MultiGridEnv):
         heatmaps = []
         grid_shape = (self.width, self.height, 1)
         for n in range(eigenvectors.shape[0]):
-            eig = eigenvectors[n]
             reward_map = np.full(grid_shape, fill_value=np.nan)
 
             for i in range(grid_shape[0]):
@@ -394,6 +393,7 @@ class Maze(MultiGridEnv):
                             feature, _ = extractor(state_copy)
                         feature = feature.cpu().numpy().squeeze(0)
 
+                        eig = eigenvectors[n]
                         reward = np.dot(eig, feature)
                         reward_map[current_idx] = reward
 

@@ -17,9 +17,9 @@ from utils.rl import get_extractor, get_vector
 from utils.sampler import OnlineSampler
 
 
-class IGTPO_Algorithm(nn.Module):
+class IntrinsicRewardFunctions(nn.Module):
     def __init__(self, env, logger, writer, args):
-        super(IGTPO_Algorithm, self).__init__()
+        super(IntrinsicRewardFunctions, self).__init__()
 
         # === Parameter saving === #
         self.env = env
@@ -27,76 +27,112 @@ class IGTPO_Algorithm(nn.Module):
         self.writer = writer
         self.args = args
 
-        self.args.igtpo_nupdates = args.timesteps // (
-            args.batch_size * args.num_inner_updates * args.num_options
-        )
-
         self.current_timesteps = 0
 
-    def begin_training(self):
-        # === Define extractor === #
-        self.define_extractor()
-        self.define_eigenvectors()
+        self.intrinsic_reward_mode = self.args.intrinsic_reward_mode
 
-        # === Sampler === #
-        outer_sampler = OnlineSampler(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            episode_len=self.env.max_steps,
-            batch_size=self.args.batch_size,
-        )
-        inner_sampler = OnlineSampler(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            episode_len=self.env.max_steps,
-            batch_size=self.args.batch_size // 4,
-            verbose=False,
-        )
-        # === Meta-train using options === #'
-        self.define_outer_policy()
-        trainer = IGTPOTrainer(
-            env=self.env,
-            policy=self.policy,
-            outer_sampler=outer_sampler,
-            inner_sampler=inner_sampler,
-            logger=self.logger,
-            writer=self.writer,
-            init_timesteps=self.current_timesteps,
-            timesteps=self.args.timesteps,
-            log_interval=self.args.log_interval,
-            eval_num=self.args.eval_num,
-            rendering=self.args.rendering,
-            seed=self.args.seed,
-            args=self.args,
-        )
-        final_steps = trainer.train()
-        self.current_timesteps += final_steps
+        if self.intrinsic_reward_mode == "eigenpurpose":
+            self.define_extractor()
+            self.define_eigenvectors()
+            self.num_rewards = self.args.num_options
+        elif self.intrinsic_reward_mode == "allo":
+            self.define_allo()
+            self.define_eigenvectors()
+            self.num_rewards = self.args.num_options
+        elif self.intrinsic_reward_mode == "drnd":
+            self.define_drnd_policy()
+            self.num_rewards = 1
 
-        # # === Fine-tune === #
-        # sampler = OnlineSampler(
-        #     state_dim=self.args.state_dim,
-        #     action_dim=self.args.action_dim,
-        #     episode_len=self.env.max_steps,
-        #     batch_size=int(self.args.num_minibatch * self.args.minibatch_size),
-        # )
+    def forward(
+        self,
+        states: torch.Tensor,
+        next_states: torch.Tensor,
+        i: int,
+        update: bool = False,
+    ):
+        if self.intrinsic_reward_mode == "eigenpurpose":
+            # get features
+            with torch.no_grad():
+                feature, _ = self.extractor(states)
+                next_feature, _ = self.extractor(next_states)
 
-        # self.define_ppo_policy()
-        # trainer = Trainer(
-        #     env=self.env,
-        #     policy=self.policy,
-        #     sampler=sampler,
-        #     logger=self.logger,
-        #     writer=self.writer,
-        #     init_timesteps=self.current_timesteps,
-        #     timesteps=int(0.1 * self.args.timesteps),
-        #     log_interval=self.args.log_interval,
-        #     eval_num=self.args.eval_num,
-        #     seed=self.args.seed,
-        # )
+                difference = next_feature - feature
 
-        # trainer.train()
+            # Calculate the intrinsic reward using the eigenvector
+            intrinsic_rewards = torch.matmul(
+                difference, self.eigenvectors[i].unsqueeze(-1)
+            ).to(self.args.device)
+
+        elif self.intrinsic_reward_mode == "allo":
+            with torch.no_grad():
+                feature, _ = self.extractor(states)
+                next_feature, _ = self.extractor(next_states)
+
+                difference = next_feature - feature
+                intrinsic_rewards = difference[:, i]
+
+        elif self.intrinsic_reward_mode == "drnd":
+            with torch.no_grad():
+                intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
+            if update:
+                drnd_loss = self.drnd_policy.drnd_loss(next_states)
+                self.drnd_policy.optimizer.zero_grad()
+                drnd_loss.backward()
+                self.drnd_policy.optimizer.step()
+
+        return intrinsic_rewards
 
     def define_extractor(self):
+        if not os.path.exists("model"):
+            os.makedirs("model")
+        model_path = f"model/{self.args.env_name}-{self.args.intrinsic_reward_mode}-feature_network.pth"
+        extractor = get_extractor(self.args)
+
+        if not os.path.exists(model_path):
+            uniform_random_policy = UniformRandom(
+                state_dim=self.args.state_dim,
+                action_dim=self.args.action_dim,
+                is_discrete=self.args.is_discrete,
+                device=self.args.device,
+            )
+            sampler = OnlineSampler(
+                state_dim=self.args.state_dim,
+                action_dim=self.args.action_dim,
+                episode_len=self.args.episode_len,
+                batch_size=16384,
+                verbose=False,
+            )
+            trainer = ExtractorTrainer(
+                env=self.env,
+                random_policy=uniform_random_policy,
+                extractor=extractor,
+                sampler=sampler,
+                logger=self.logger,
+                writer=self.writer,
+                epochs=self.args.extractor_epochs,
+                batch_size=self.args.batch_size,
+            )
+            final_timesteps = trainer.train()
+            torch.save(extractor.state_dict(), model_path)
+
+            self.current_timesteps += final_timesteps
+        else:
+            extractor.load_state_dict(
+                torch.load(model_path, map_location=self.args.device)
+            )
+            extractor.to(self.args.device)
+
+        self.extractor = extractor
+
+    def define_eigenvectors(self):
+        # === Define eigenvectors === #
+        eigenvectors, heatmaps = get_vector(self.env, self.extractor, self.args)
+        self.eigenvectors = torch.from_numpy(eigenvectors).to(self.args.device)
+        self.logger.write_images(
+            step=self.current_timesteps, images=heatmaps, logdir="Image/Heatmaps"
+        )
+
+    def define_allo(self):
         if not os.path.exists("model"):
             os.makedirs("model")
         model_path = f"model/{self.args.env_name}-feature_network.pth"
@@ -138,12 +174,107 @@ class IGTPO_Algorithm(nn.Module):
 
         self.extractor = extractor
 
-    def define_eigenvectors(self):
-        # === Define eigenvectors === #
-        self.eigenvectors, heatmaps = get_vector(self.env, self.extractor, self.args)
-        self.logger.write_images(
-            step=self.current_timesteps, images=heatmaps, logdir="Image/Heatmaps"
+    def define_drnd_policy(self):
+        from policy.drndppo import DRNDPPO_Learner
+        from policy.layers.drnd_networks import DRNDModel
+        from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
+
+        actor = PPO_Actor(
+            input_dim=self.args.state_dim,
+            hidden_dim=self.args.actor_fc_dim,
+            action_dim=self.args.action_dim,
+            is_discrete=self.args.is_discrete,
+            device=self.args.device,
         )
+        critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
+
+        feature_dim = (
+            self.args.feature_dim if self.args.feature_dim else self.args.state_dim
+        )
+        drnd_model = DRNDModel(
+            input_dim=self.args.state_dim,
+            output_dim=feature_dim,
+            num=10,
+            device=self.args.device,
+        )
+        drnd_critic = PPO_Critic(
+            self.args.state_dim, hidden_dim=self.args.critic_fc_dim
+        )
+
+        self.drnd_policy = DRNDPPO_Learner(
+            actor=actor,
+            critic=critic,
+            drnd_model=drnd_model,
+            drnd_critic=drnd_critic,
+            actor_lr=self.args.actor_lr,
+            critic_lr=self.args.critic_lr,
+            drnd_lr=3e-4,
+            num_minibatch=self.args.num_minibatch,
+            minibatch_size=self.args.minibatch_size,
+            eps_clip=self.args.eps_clip,
+            entropy_scaler=self.args.entropy_scaler,
+            target_kl=self.args.target_kl,
+            gamma=self.args.gamma,
+            gae=self.args.gae,
+            K=self.args.K_epochs,
+            device=self.args.device,
+        )
+
+
+class IGTPO_Algorithm(nn.Module):
+    def __init__(self, env, logger, writer, args):
+        super(IGTPO_Algorithm, self).__init__()
+
+        # === Parameter saving === #
+        self.env = env
+        self.logger = logger
+        self.writer = writer
+        self.args = args
+
+        self.intrinsic_reward_fn = IntrinsicRewardFunctions(
+            env=env, logger=logger, writer=writer, args=args
+        )
+
+        self.args.igtpo_nupdates = args.timesteps // (
+            args.batch_size * args.num_inner_updates * args.num_options
+        )
+
+        self.current_timesteps = self.intrinsic_reward_fn.current_timesteps
+
+    def begin_training(self):
+        # === Sampler === #
+        outer_sampler = OnlineSampler(
+            state_dim=self.args.state_dim,
+            action_dim=self.args.action_dim,
+            episode_len=self.env.max_steps,
+            batch_size=self.args.batch_size,
+        )
+        inner_sampler = OnlineSampler(
+            state_dim=self.args.state_dim,
+            action_dim=self.args.action_dim,
+            episode_len=self.env.max_steps,
+            batch_size=self.args.batch_size // 4,
+            verbose=False,
+        )
+        # === Meta-train using options === #'
+        self.define_outer_policy()
+        trainer = IGTPOTrainer(
+            env=self.env,
+            policy=self.policy,
+            outer_sampler=outer_sampler,
+            inner_sampler=inner_sampler,
+            logger=self.logger,
+            writer=self.writer,
+            init_timesteps=self.current_timesteps,
+            timesteps=self.args.timesteps,
+            log_interval=self.args.log_interval,
+            eval_num=self.args.eval_num,
+            rendering=self.args.rendering,
+            seed=self.args.seed,
+            args=self.args,
+        )
+        final_steps = trainer.train()
+        self.current_timesteps += final_steps
 
     def define_outer_policy(self):
         # === Define policy === #
@@ -156,21 +287,11 @@ class IGTPO_Algorithm(nn.Module):
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        extrinsic_critics = nn.ModuleList(
-            [deepcopy(critic) for _ in range(self.args.num_options)]
-        )
-        intrinsic_critics = nn.ModuleList(
-            [deepcopy(critic) for _ in range(self.args.num_options)]
-        )
-
         self.policy = IGTPO_Learner(
-            extractor=self.extractor,
-            eigenvectors=self.eigenvectors,
             actor=actor,
-            extrinsic_critics=extrinsic_critics,
-            intrinsic_critics=intrinsic_critics,
+            critic=critic,
+            intrinsic_reward_fn=self.intrinsic_reward_fn,
             nupdates=self.args.igtpo_nupdates,
-            num_vectors=self.args.num_options,
             num_inner_updates=self.args.num_inner_updates,
             actor_lr=self.args.igtpo_actor_lr,
             critic_lr=self.args.critic_lr,

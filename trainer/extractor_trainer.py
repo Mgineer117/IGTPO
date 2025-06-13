@@ -130,11 +130,14 @@ class ExtractorTrainer:
             self.writer.add_scalar(key, value, step)
 
     def write_image(self, image: np.ndarray, step: int, logdir: str, name: str):
-        if isinstance(image, torch.Tensor):
-            image = image.cpu().numpy()
-        image_list = [image]
-        path_image_path = os.path.join(logdir, name)
-        self.logger.write_images(step=step, images=image_list, logdir=path_image_path)
+        if image is not None:
+            if isinstance(image, torch.Tensor):
+                image = image.cpu().numpy()
+            image_list = [image]
+            path_image_path = os.path.join(logdir, name)
+            self.logger.write_images(
+                step=step, images=image_list, logdir=path_image_path
+            )
 
     def write_video(self, rendering_imgs: list, step: int, logdir: str, name: str):
         path_render_path = os.path.join(logdir, name)
