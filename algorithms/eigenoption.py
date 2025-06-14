@@ -86,7 +86,7 @@ class EigenOption(nn.Module):
         # if model directory does not exist, create it
         if not os.path.exists("model"):
             os.makedirs("model")
-        model_path = f"model/{self.args.env_name}-{self.args.intrinsic_reward_mode}-feature_network.pth"
+        model_path = f"model/{self.args.env_name}-eigenpurpose-feature_network.pth"
         extractor = get_extractor(self.args)
 
         self.uniform_random_policy = UniformRandom(

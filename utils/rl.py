@@ -145,7 +145,7 @@ def get_extractor(args):
                 minibatch_size=args.minibatch_size,
                 device=args.device,
             )
-        elif args.intrinsic_reward_mode == "eigenpurpose":
+        elif args.intrinsic_reward_mode in ("eigenpurpose", "all"):
             extractor = Extractor(
                 network=feature_network,
                 extractor_lr=args.extractor_lr,
@@ -176,7 +176,7 @@ def get_vector(env, extractor, args):
         state_dim=args.state_dim,
         action_dim=args.action_dim,
         episode_len=args.episode_len,
-        batch_size=100 * args.episode_len,
+        batch_size=1000 * args.episode_len,
         verbose=False,
     )
 
@@ -192,7 +192,7 @@ def get_vector(env, extractor, args):
     with torch.no_grad():
         features, _ = extractor(data)
 
-    if args.intrinsic_reward_mode == "eigenpurpose":
+    if args.intrinsic_reward_mode in ("eigenpurpose", "all"):
         # Covariance-based PCA
         cov = torch.cov(features.T)
         eigval, eigvec = torch.linalg.eigh(cov)

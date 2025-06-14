@@ -86,7 +86,7 @@ class IGTPOTrainer:
 
         # Train loop
         eval_idx = 0
-        prune_idx = int(self.timesteps / 2) / self.prune_interval
+        prune_idx = 0  # / self.prune_interval
         trim_idx = 0  # int(self.timesteps / 2) / self.trim_interval
 
         with tqdm(
@@ -107,14 +107,14 @@ class IGTPOTrainer:
                 pbar.update(timesteps)
 
                 # === reduce target_kl === #
-                # self.policy.lr_scheduler(
-                #     current_step / (self.timesteps + self.init_timesteps)
-                # )
+                self.policy.lr_scheduler(
+                    current_step / (self.timesteps + self.init_timesteps)
+                )
 
                 # === PRUNE TWIG === #
-                # if current_step > self.prune_interval * (prune_idx + 1):
-                #     self.policy.prune()
-                #     prune_idx += 1
+                if current_step > self.prune_interval * (prune_idx + 1):
+                    self.policy.prune()
+                    prune_idx += 1
 
                 # === TRIM TWIG === #
                 if current_step > self.trim_interval * (trim_idx + 1):
@@ -132,8 +132,8 @@ class IGTPOTrainer:
                     # Manual logging
                     fig, ax = plt.subplots(figsize=(8, 6))
                     ax.stem(
-                        np.arange(len(self.policy.probabilities)),
-                        self.policy.probabilities,
+                        np.arange(len(self.policy.probability_history)),
+                        self.policy.probability_history,
                     )
 
                     # Convert figure to a NumPy array

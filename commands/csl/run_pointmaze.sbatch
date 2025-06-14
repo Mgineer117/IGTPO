@@ -3,7 +3,7 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=csl
 #SBATCH --nodes=1
-#SBATCH --ntasks=6
+#SBATCH --ntasks=8
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --time=7-00:00:00
@@ -19,12 +19,14 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name ppo --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name trpo --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name psne --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name drndppo --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name eigenoption --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name igtpo --num-runs 10 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name ppo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name trpo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name psne & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name drndppo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name eigenoption & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name igtpo --intrinsic-reward-mode eigenpurpose & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name igtpo --intrinsic-reward-mode drnd & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-medium --project igtpo --algo-name igtpo --intrinsic-reward-mode all & 
 
 # === Wait for all background jobs to finish ===
 wait

@@ -50,7 +50,7 @@ class Maze(MultiGridEnv):
         else:
             self.grid_type = grid_type
 
-        self.max_steps = 200 if grid_type == 0 else 50
+        self.max_steps = 100 if grid_type == 0 else 50
         self.world = GridWorld
         self.actions_set = GridActions
 
@@ -67,15 +67,15 @@ class Maze(MultiGridEnv):
         ]
 
         # Define positions for goals and agents
-        self.goal_positions = [(15, 8), (3, 7)]
-        self.agent_positions = [(3, 9), (5, 1)]
+        self.goal_positions = [(15, 15), (3, 7)]
+        self.agent_positions = [(2, 2), (5, 1)]
 
         # Explicit maze structure based on the image
         self.map = [
             [
                 "###################",
-                "#                 #",
-                "# ####### ##### # #",
+                "#             #   #",
+                "#   ##### ##### # #",
                 "#               # #",
                 "# ####### ####### #",
                 "# #     # #       #",
@@ -85,12 +85,12 @@ class Maze(MultiGridEnv):
                 "#       #         #",
                 "# ##### # ####### #",
                 "# #               #",
-                "# # ######## # ####",
-                "# #        # #    #",
-                "# # #      # #    #",
-                "# # #      # #    #",
-                "# # #      # #    #",
-                "#   #        #    #",
+                "# # ####### ##### #",
+                "# #       # #     #",
+                "# # #     # #     #",
+                "# # #     # #     #",
+                "# # #     # #     #",
+                "#   #       #     #",
                 "###################",
             ],
             [

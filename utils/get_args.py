@@ -75,7 +75,7 @@ def get_args():
         "--actor-lr", type=float, default=1e-4, help="Base learning rate."
     )
     parser.add_argument(
-        "--critic-lr", type=float, default=3e-4, help="Base learning rate."
+        "--critic-lr", type=float, default=1e-4, help="Base learning rate."
     )
     parser.add_argument(
         "--eps-clip", type=float, default=None, help="Base learning rate."
@@ -133,7 +133,7 @@ def get_args():
     parser.add_argument(
         "--intrinsic-reward-mode",
         type=str,
-        default="eigenpurpose",
+        default="all",
         help="Base learning rate.",
     )
     parser.add_argument("--gamma", type=float, default=0.99, help="Base learning rate.")

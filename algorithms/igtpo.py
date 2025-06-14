@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -15,6 +16,7 @@ from trainer.igtpo_trainer import IGTPOTrainer
 from trainer.metaigtpo_trainer import MetaIGTPOTrainer
 from utils.rl import get_extractor, get_vector
 from utils.sampler import OnlineSampler
+from utils.wrapper import RunningMeanStd
 
 
 class IntrinsicRewardFunctions(nn.Module):
@@ -28,6 +30,7 @@ class IntrinsicRewardFunctions(nn.Module):
         self.args = args
 
         self.current_timesteps = 0
+        self.loss_dict = {}
 
         self.intrinsic_reward_mode = self.args.intrinsic_reward_mode
 
@@ -42,14 +45,14 @@ class IntrinsicRewardFunctions(nn.Module):
         elif self.intrinsic_reward_mode == "drnd":
             self.define_drnd_policy()
             self.num_rewards = 1
+        elif self.intrinsic_reward_mode == "all":
+            # eigenpurpose + drnd
+            self.define_extractor()
+            self.define_eigenvectors()
+            self.define_drnd_policy()
+            self.num_rewards = self.args.num_options + 1
 
-    def forward(
-        self,
-        states: torch.Tensor,
-        next_states: torch.Tensor,
-        i: int,
-        update: bool = False,
-    ):
+    def forward(self, states: torch.Tensor, next_states: torch.Tensor, i: int):
         if self.intrinsic_reward_mode == "eigenpurpose":
             # get features
             with torch.no_grad():
@@ -62,6 +65,16 @@ class IntrinsicRewardFunctions(nn.Module):
             intrinsic_rewards = torch.matmul(
                 difference, self.eigenvectors[i].unsqueeze(-1)
             ).to(self.args.device)
+            self.reward_rms[i].update(intrinsic_rewards.cpu().numpy())
+
+            var_tensor = torch.as_tensor(
+                self.reward_rms[i].var,
+                device=intrinsic_rewards.device,
+                dtype=intrinsic_rewards.dtype,
+            )
+            intrinsic_rewards = intrinsic_rewards / (torch.sqrt(var_tensor) + 1e-8)
+
+            source = "eigenpurpose"
 
         elif self.intrinsic_reward_mode == "allo":
             with torch.no_grad():
@@ -70,22 +83,76 @@ class IntrinsicRewardFunctions(nn.Module):
 
                 difference = next_feature - feature
                 intrinsic_rewards = difference[:, i]
+            source = "allo"
 
         elif self.intrinsic_reward_mode == "drnd":
             with torch.no_grad():
                 intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
-            if update:
-                drnd_loss = self.drnd_policy.drnd_loss(next_states)
+            source = "drnd"
+        elif self.intrinsic_reward_mode == "all":
+            if i < self.num_rewards - 1:
+                # get features
+                with torch.no_grad():
+                    feature, _ = self.extractor(states)
+                    next_feature, _ = self.extractor(next_states)
+
+                    difference = next_feature - feature
+
+                # Calculate the intrinsic reward using the eigenvector
+                intrinsic_rewards = torch.matmul(
+                    difference, self.eigenvectors[i].unsqueeze(-1)
+                ).to(self.args.device)
+                self.reward_rms[i].update(intrinsic_rewards.cpu().numpy())
+
+                var_tensor = torch.as_tensor(
+                    self.reward_rms[i].var,
+                    device=intrinsic_rewards.device,
+                    dtype=intrinsic_rewards.dtype,
+                )
+                intrinsic_rewards = intrinsic_rewards / (torch.sqrt(var_tensor) + 1e-8)
+
+                source = "eigenpurpose"
+            else:
+                with torch.no_grad():
+                    intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
+                source = "drnd"
+
+        return intrinsic_rewards, source
+
+    def learn(
+        self, states: torch.Tensor, next_states: torch.Tensor, i: int, keyword: str
+    ):
+        if keyword == "drnd":
+            batch_size = states.shape[0]
+            iteration = 10
+            losses = []
+            perm = torch.randperm(batch_size)
+            mb_size = batch_size // iteration
+            for i in range(iteration):
+                indices = perm[i * mb_size : (i + 1) * mb_size]
+                drnd_loss = self.drnd_policy.drnd_loss(next_states[indices])
+
                 self.drnd_policy.optimizer.zero_grad()
                 drnd_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    self.drnd_policy.parameters(), max_norm=0.5
+                )
                 self.drnd_policy.optimizer.step()
+                losses.append(drnd_loss.item())
 
-        return intrinsic_rewards
+            self.loss_dict[f"IntrinsicRewardModuleLoss/drnd_loss"] = np.array(
+                losses
+            ).mean()
+        else:
+            pass
 
     def define_extractor(self):
         if not os.path.exists("model"):
             os.makedirs("model")
-        model_path = f"model/{self.args.env_name}-{self.args.intrinsic_reward_mode}-feature_network.pth"
+        if self.args.intrinsic_reward_mode == "all":
+            model_path = f"model/{self.args.env_name}-eigenpurpose-feature_network.pth"
+        else:
+            model_path = f"model/{self.args.env_name}-{self.args.intrinsic_reward_mode}-feature_network.pth"
         extractor = get_extractor(self.args)
 
         if not os.path.exists(model_path):
@@ -128,6 +195,9 @@ class IntrinsicRewardFunctions(nn.Module):
         # === Define eigenvectors === #
         eigenvectors, heatmaps = get_vector(self.env, self.extractor, self.args)
         self.eigenvectors = torch.from_numpy(eigenvectors).to(self.args.device)
+        self.reward_rms = []
+        for _ in range(self.eigenvectors.shape[0]):
+            self.reward_rms.append(RunningMeanStd(shape=(1,)))
         self.logger.write_images(
             step=self.current_timesteps, images=heatmaps, logdir="Image/Heatmaps"
         )

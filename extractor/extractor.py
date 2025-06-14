@@ -194,7 +194,7 @@ class ALLO(Extractor):
         self.use_barrier_for_duals = 0
         self.min_duals = 0.0
         self.max_duals = 100.0
-        self.barrier_increase_rate = 0.1
+        self.barrier_increase_rate = 0.01
         self.min_barrier_coefs = 0
         self.max_barrier_coefs = 10000
 
@@ -286,7 +286,7 @@ class ALLO(Extractor):
             updated_duals = torch.clamp(
                 updated_duals, min=self.min_duals, max=self.max_duals
             )
-            updated_duals = torch.tril(updated_duals)
+            self.dual_variables.copy_(torch.tril(updated_duals))
 
             delta = updated_duals - self.dual_variables
             norm_vel = torch.norm(self.dual_velocities)
@@ -300,7 +300,6 @@ class ALLO(Extractor):
             )
             update_rate = init_coeff + (1 - init_coeff) * self.lr_dual_velocities
             self.dual_velocities += update_rate * (delta - self.dual_velocities)
-            self.dual_variables.copy_(updated_duals)
 
         # === Update barrier coefficients (matrix) ===
         with torch.no_grad():

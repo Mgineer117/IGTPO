@@ -23,6 +23,12 @@ from gridworld.core.grid import Grid
 from gridworld.core.object import Goal, Lava, Obstacle, Wall
 from gridworld.core.world import GridWorld
 from gridworld.multigrid import MultiGridEnv
+from gridworld.policy.ctf.heuristic import (
+    HEURISTIC_POLICIES,
+    CtfPolicyT,
+    RoombaPolicy,
+    RwPolicy,
+)
 from gridworld.typing import Position
 from gridworld.utils.window import Window
 
@@ -35,7 +41,8 @@ class NineRooms(MultiGridEnv):
     def __init__(
         self,
         grid_type: int = 0,
-        max_steps: int = 150,
+        max_steps: int = 100,
+        num_random_agent: int = 2,
         highlight_visible_cells: bool = False,
         tile_size: int = 10,
         state_representation: str = "tensor",
@@ -58,6 +65,21 @@ class NineRooms(MultiGridEnv):
                 type="agent",
             )
         ]
+
+        self.num_random_agent = num_random_agent
+        self.random_agent_positions = [[(3, 3), (15, 15)]]
+        for i in range(1, 1 + self.num_random_agent):
+            self.agents.append(
+                PolicyAgent(
+                    RwPolicy(action_set=self.actions_set),
+                    self.world,
+                    index=i,
+                    color="red",
+                    bg_color="light_red",
+                    actions=self.actions_set,
+                    type="obstacle",
+                )
+            )
 
         # Define positions for goals and agents
         self.goal_positions = [(15, 3), (18, 2), (23, 2)]
@@ -213,9 +235,13 @@ class NineRooms(MultiGridEnv):
             agent_positions = random.sample(coords, 1)[0]
         else:
             agent_positions = self.agent_positions[self.grid_type]
+        self.place_agent(self.agents[0], pos=agent_positions)
 
-        for agent in self.agents:
-            self.place_agent(agent, pos=agent_positions)
+        if len(self.agents) > 1:
+            for i, agent in enumerate(self.agents[1:]):
+                self.place_agent(
+                    agent, pos=self.random_agent_positions[self.grid_type][i]
+                )
 
     def find_obj_coordinates(self, obj) -> tuple[int, int] | None:
         """
@@ -245,18 +271,21 @@ class NineRooms(MultiGridEnv):
 
         return observations, info
 
-    def step(self, actions):
+    def step(self, action):
         self.step_count += 1
 
         ### NOTE: MULTIAGENT SETTING NOT IMPLEMENTED
-        actions = np.argmax(actions)
-        actions = [actions]
-        order = np.random.permutation(len(actions))
+        action = np.argmax(action)
+        actions = [action]
 
-        rewards = np.zeros(len(actions))
+        for i in range(1, len(self.agents)):
+            actions.append(self.agents[i].policy.act())
+
+        rewards = np.zeros(1)
         info = {"success": False}
+        done = False
 
-        for i in order:
+        for i in range(len(self.agents)):
             if (
                 self.agents[i].terminated
                 or self.agents[i].paused
@@ -266,7 +295,6 @@ class NineRooms(MultiGridEnv):
 
             # Get the current agent position
             curr_pos = self.agents[i].pos
-            done = False
 
             # Rotate left
             if actions[i] == self.actions.left:
@@ -275,14 +303,15 @@ class NineRooms(MultiGridEnv):
                 fwd_cell = self.grid.get(*fwd_pos)
 
                 if fwd_cell is not None:
-                    if fwd_cell.type == "goal":
-                        done = True
-                        rewards = self._reward(i, rewards, 1)
-                        info["success"] = True
-                    elif fwd_cell.type == "lava":
-                        done = True
-                        rewards[i] = -1
-                        info["success"] = False
+                    if self.agents[i].type == "agent":
+                        if fwd_cell.type == "goal":
+                            done = True
+                            rewards = self._reward(i, rewards, 1)
+                            info["success"] = True
+                        elif fwd_cell.type == "lava":
+                            done = True
+                            rewards[i] = -1
+                            info["success"] = False
                 elif fwd_cell is None or fwd_cell.can_overlap():
                     self.grid.set(*self.agents[i].pos, None)
                     self.grid.set(*fwd_pos, self.agents[i])
@@ -296,14 +325,15 @@ class NineRooms(MultiGridEnv):
                 fwd_cell = self.grid.get(*fwd_pos)
 
                 if fwd_cell is not None:
-                    if fwd_cell.type == "goal":
-                        done = True
-                        rewards = self._reward(i, rewards, 1)
-                        info["success"] = True
-                    elif fwd_cell.type == "lava":
-                        done = True
-                        rewards[i] = -1
-                        info["success"] = False
+                    if self.agents[i].type == "agent":
+                        if fwd_cell.type == "goal":
+                            done = True
+                            rewards = self._reward(i, rewards, 1)
+                            info["success"] = True
+                        elif fwd_cell.type == "lava":
+                            done = True
+                            rewards[i] = -1
+                            info["success"] = False
                 elif fwd_cell is None or fwd_cell.can_overlap():
                     self.grid.set(*self.agents[i].pos, None)
                     self.grid.set(*fwd_pos, self.agents[i])
@@ -317,14 +347,15 @@ class NineRooms(MultiGridEnv):
                 fwd_cell = self.grid.get(*fwd_pos)
 
                 if fwd_cell is not None:
-                    if fwd_cell.type == "goal":
-                        done = True
-                        rewards = self._reward(i, rewards, 1)
-                        info["success"] = True
-                    elif fwd_cell.type == "lava":
-                        done = True
-                        rewards[i] = -1
-                        info["success"] = False
+                    if self.agents[i].type == "agent":
+                        if fwd_cell.type == "goal":
+                            done = True
+                            rewards = self._reward(i, rewards, 1)
+                            info["success"] = True
+                        elif fwd_cell.type == "lava":
+                            done = True
+                            rewards[i] = -1
+                            info["success"] = False
                 elif fwd_cell is None or fwd_cell.can_overlap():
                     self.grid.set(*self.agents[i].pos, None)
                     self.grid.set(*fwd_pos, self.agents[i])
@@ -337,14 +368,15 @@ class NineRooms(MultiGridEnv):
                 fwd_cell = self.grid.get(*fwd_pos)
 
                 if fwd_cell is not None:
-                    if fwd_cell.type == "goal":
-                        done = True
-                        rewards = self._reward(i, rewards, 1)
-                        info["success"] = True
-                    elif fwd_cell.type == "lava":
-                        done = True
-                        rewards[i] = -1
-                        info["success"] = False
+                    if self.agents[i].type == "agent":
+                        if fwd_cell.type == "goal":
+                            done = True
+                            rewards = self._reward(i, rewards, 1)
+                            info["success"] = True
+                        elif fwd_cell.type == "lava":
+                            done = True
+                            rewards[i] = -1
+                            info["success"] = False
                 elif fwd_cell is None or fwd_cell.can_overlap():
                     self.grid.set(*self.agents[i].pos, None)
                     self.grid.set(*fwd_pos, self.agents[i])
@@ -388,19 +420,9 @@ class NineRooms(MultiGridEnv):
             )
             obs = obs / np.maximum(self.grid_size[0], self.grid_size[1])
         elif self.state_representation == "tensor":
-            obs = [
-                self.grid.encode_for_agents(agent_pos=self.agents[i].pos)
-                for i in range(len(self.agents))
-            ]
-            obs = [self.world.normalize_obs * ob for ob in obs]
-            obs = obs[0][:, :, 0:1]
+            obs = self.grid.encode()
         elif self.state_representation == "vectorized_tensor":
-            obs = [
-                self.grid.encode_for_agents(agent_pos=self.agents[i].pos)
-                for i in range(len(self.agents))
-            ]
-            obs = [self.world.normalize_obs * ob for ob in obs]
-            obs = obs[0][:, :, 0:1].flatten()
+            obs = self.grid.encode().flatten()
         else:
             raise ValueError(
                 f"Unknown state representation {self.state_representation}. "

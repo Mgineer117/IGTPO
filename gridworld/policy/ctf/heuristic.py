@@ -5,7 +5,7 @@ import numpy as np
 from numpy.random import Generator
 from numpy.typing import NDArray
 
-from gridworld.core.agent import ActionsT, MazeActions
+from gridworld.core.agent import ActionsT, GridActions
 from gridworld.core.world import CtfWorld, WorldT
 from gridworld.policy.base import BaseAgentPolicy
 from gridworld.policy.ctf.typing import ObservationDict
@@ -144,7 +144,7 @@ class RwPolicy(CtfPolicy):
 
     def __init__(
         self,
-        action_set: ActionsT = MazeActions,
+        action_set: ActionsT = GridActions,
         random_generator: Generator | None = None,
     ) -> None:
         """
@@ -181,7 +181,7 @@ class DestinationPolicy(CtfPolicy):
     def __init__(
         self,
         field_map: NDArray | None = None,
-        action_set: ActionsT = MazeActions,
+        action_set: ActionsT = GridActions,
         random_generator: Generator | None = None,
         randomness: float = 0.25,
         world: WorldT = CtfWorld,
@@ -195,7 +195,7 @@ class DestinationPolicy(CtfPolicy):
         field_map : numpy.typing.NDArray | None = None
             Field map of the environment.
             Make sure to set it to the field map of the environment.
-        actions : gym_multigrid.core.agent.ActionsT = MazeActions
+        actions : gym_multigrid.core.agent.ActionsT = GridActions
             Actions available to the agent.
         random_generator : numpy.random.Generator | None = None
             Random number generator. Replace it with the environment's random number generator if needed.
@@ -288,7 +288,7 @@ class FightPolicy(DestinationPolicy):
     def __init__(
         self,
         field_map: NDArray | None = None,
-        action_set: ActionsT = MazeActions,
+        action_set: ActionsT = GridActions,
         random_generator: Generator | None = None,
         randomness: float = 0.25,
         ego_agent: Literal["red", "blue"] = "red",
@@ -302,7 +302,7 @@ class FightPolicy(DestinationPolicy):
         ----------
         field_map : numpy.typing.NDArray | None = None
             Field map of the environment.
-        actions : gym_multigrid.core.agent.ActionsT = MazeActions
+        actions : gym_multigrid.core.agent.ActionsT = GridActions
             Actions available to the agent.
         randomness : float = 0.25
             Probability of taking an random action instead of an optimal action.
@@ -347,7 +347,7 @@ class CapturePolicy(DestinationPolicy):
     def __init__(
         self,
         field_map: NDArray | None = None,
-        action_set: ActionsT = MazeActions,
+        action_set: ActionsT = GridActions,
         random_generator: Generator | None = None,
         randomness: float = 0.25,
         ego_agent: Literal["red", "blue"] = "red",
@@ -361,7 +361,7 @@ class CapturePolicy(DestinationPolicy):
         ----------
         field_map : numpy.typing.NDArray | None = None
             Field map of the environment.
-        actions : gym_multigrid.core.agent.ActionsT = MazeActions
+        actions : gym_multigrid.core.agent.ActionsT = GridActions
             Actions available to the agent.
         randomness : float = 0.25
             Probability of taking an random action instead of an optimal action.
@@ -403,7 +403,7 @@ class PatrolPolicy(DestinationPolicy):
     def __init__(
         self,
         field_map: NDArray | None = None,
-        action_set: ActionsT = MazeActions,
+        action_set: ActionsT = GridActions,
         random_generator: Generator | None = None,
         randomness: float = 0.25,
         ego_agent: Literal["red", "blue"] = "red",
@@ -417,7 +417,7 @@ class PatrolPolicy(DestinationPolicy):
         ----------
         field_map : numpy.typing.NDArray | None = None
             Field map of the environment.
-        actions : gym_multigrid.core.agent.ActionsT = MazeActions
+        actions : gym_multigrid.core.agent.ActionsT = GridActions
             Actions available to the agent.
         randomness : float = 0.25
             Probability of taking an random action instead of an optimal action.
@@ -529,7 +529,7 @@ class PatrolFightPolicy(PatrolPolicy):
     def __init__(
         self,
         field_map: NDArray | None = None,
-        action_set: ActionsT = MazeActions,
+        action_set: ActionsT = GridActions,
         random_generator: Generator | None = None,
         randomness: float = 0.25,
         ego_agent: Literal["red", "blue"] = "red",
@@ -543,7 +543,7 @@ class PatrolFightPolicy(PatrolPolicy):
         ----------
         field_map : numpy.typing.NDArray | None = None
             Field map of the environment.
-        actions : gym_multigrid.core.agent.ActionsT = MazeActions
+        actions : gym_multigrid.core.agent.ActionsT = GridActions
             Actions available to the agent.
         randomness : float = 0.25
             Probability of taking an random action instead of an optimal action.
@@ -634,7 +634,7 @@ class RoombaPolicy(CtfPolicy):
         enemy_range: int = 2,
         flag_range: int = 3,
         field_map: NDArray | None = None,
-        action_set: ActionsT = MazeActions,
+        action_set: ActionsT = GridActions,
         random_generator: Generator | None = None,
         randomness: float = 0.15,
         ego_agent: Literal["red", "blue"] = "red",
@@ -653,7 +653,7 @@ class RoombaPolicy(CtfPolicy):
         field_map : numpy.typing.NDArray | None = None
             Field map of the environment.
             Make sure to set it to the field map of the environment.
-        actions : gym_multigrid.core.agent.ActionsT = MazeActions
+        actions : gym_multigrid.core.agent.ActionsT = GridActions
             Actions available to the agent.
         random_generator : numpy.random.Generator | None = None
             Random number generator.
