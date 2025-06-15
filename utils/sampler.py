@@ -80,7 +80,7 @@ class OnlineSampler(Base):
             num_cores (int | None): Override for max cores to use.
             verbose (bool): Whether to print initialization info.
         """
-        self.batch_size_for_worker = 2 * episode_len
+        self.batch_size_for_worker = 5 * episode_len
         super().__init__(
             state_dim=state_dim,
             action_dim=action_dim,
