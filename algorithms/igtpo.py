@@ -279,7 +279,7 @@ class IntrinsicRewardFunctions(nn.Module):
             drnd_critic=drnd_critic,
             actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,
-            drnd_lr=3e-4,
+            drnd_lr=1e-4,
             num_minibatch=self.args.num_minibatch,
             minibatch_size=self.args.minibatch_size,
             eps_clip=self.args.eps_clip,

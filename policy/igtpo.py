@@ -121,6 +121,19 @@ class IGTPO_Learner(Base):
 
             del self.contributing_indices[least_contributing_index]
 
+            if hasattr(self.intrinsic_reward_fn, "eigenvectors"):
+                self.intrinsic_reward_fn.eigenvectors = torch.cat(
+                    (
+                        self.intrinsic_reward_fn.eigenvectors[
+                            :least_contributing_index
+                        ],
+                        self.intrinsic_reward_fn.eigenvectors[
+                            least_contributing_index + 1 :
+                        ],
+                    ),
+                    dim=0,
+                )
+
             self.probabilities = np.delete(self.probabilities, least_contributing_index)
             self.probability_history = np.delete(
                 self.probability_history, least_contributing_index
@@ -189,9 +202,8 @@ class IGTPO_Learner(Base):
                         timesteps = batch["states"].shape[0]
                 else:  # prefix == "outer"
                     batch, sample_time = outer_sampler.collect_samples(env, actor, seed)
+                    self.record_state_visitations(batch)
                     timesteps = batch["states"].shape[0]
-
-                self.record_state_visitations(batch)
 
                 # save reward probability
                 self.probability_history[i] += batch["rewards"].mean()
