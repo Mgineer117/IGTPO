@@ -133,7 +133,7 @@ class IGTPOTrainer:
                     fig, ax = plt.subplots(figsize=(8, 6))
                     ax.stem(
                         np.array([int(x) for x in self.policy.contributing_indices]),
-                        self.policy.probability_history,
+                        self.policy.probabilities,
                     )
 
                     # Convert figure to a NumPy array

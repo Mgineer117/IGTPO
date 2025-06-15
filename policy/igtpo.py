@@ -119,6 +119,8 @@ class IGTPO_Learner(Base):
             del self.extrinsic_critic_optimizers[least_contributing_index]
             del self.intrinsic_critic_optimizers[least_contributing_index]
 
+            del self.contributing_indices[least_contributing_index]
+
             self.probabilities = np.delete(self.probabilities, least_contributing_index)
             self.probability_history = np.delete(
                 self.probability_history, least_contributing_index
@@ -164,6 +166,7 @@ class IGTPO_Learner(Base):
 
         # === iteration === #
         loss_dict_list = []
+        self.probabilities = np.array([0.0 for _ in range(self.num_rewards)])
         for i in range(self.num_rewards):
             for j in range(self.num_inner_updates):
                 # decide update
@@ -192,7 +195,7 @@ class IGTPO_Learner(Base):
 
                 # save reward probability
                 self.probability_history[i] += batch["rewards"].mean()
-                self.probabilities[i] = batch["rewards"].mean()
+                self.probabilities[i] += batch["rewards"].mean()
 
                 # with torch.no_grad():
                 #     states = self.preprocess_state(batch["states"])

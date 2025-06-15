@@ -104,7 +104,10 @@ class EigenOptionTrainer:
 
                     # === Initial Iteration ===
                     batch, sample_time = self.sampler.collect_samples(
-                        env=self.env, policy=self.policies[option_idx], seed=self.seed
+                        env=self.env,
+                        policy=self.policies[option_idx],
+                        seed=self.seed,
+                        random_init_pos=True,
                     )
                     # Use intrinsic rewards from eigenvectors
                     batch["rewards"] = self.intrinsic_rewards(
