@@ -176,7 +176,7 @@ def get_vector(env, extractor, args):
         state_dim=args.state_dim,
         action_dim=args.action_dim,
         episode_len=args.episode_len,
-        batch_size=1000 * args.episode_len,
+        batch_size=500 * args.episode_len,
         verbose=False,
     )
 
@@ -188,11 +188,12 @@ def get_vector(env, extractor, args):
     )
 
     batch, _ = sampler.collect_samples(env, uniform_random_policy, args.seed)
-    data = torch.from_numpy(batch["states"]).to(args.device)
-    with torch.no_grad():
-        features, _ = extractor(data)
 
     if args.intrinsic_reward_mode in ("eigenpurpose", "all"):
+        states = torch.from_numpy(batch["states"]).to(args.device)
+        with torch.no_grad():
+            features, _ = extractor(states)
+
         # Covariance-based PCA
         cov = torch.cov(features.T)
         eigval, eigvec = torch.linalg.eigh(cov)
@@ -205,33 +206,7 @@ def get_vector(env, extractor, args):
         eigenvectors = eigenvectors.cpu().numpy()
 
     elif args.intrinsic_reward_mode == "allo":
-        from scipy.linalg import eigh
-        from scipy.spatial.distance import cdist
-
-        # Step 1: Extract features -> features: [n, d]
-        phi = features.detach().cpu().numpy()  # shape: (n, d)
-
-        # Step 2: Compute pairwise distances
-        distances = cdist(phi, phi, metric="euclidean")  # shape: (n, n)
-
-        # Step 3: Convert to similarity matrix using RBF kernel
-        sigma = np.mean(distances)  # bandwidth
-        W = np.exp(-(distances**2) / (2 * sigma**2))  # shape: (n, n)
-
-        # Step 4: Build degree matrix and Laplacian
-        D = np.diag(W.sum(axis=1))
-        L = D - W  # Unnormalized Laplacian
-
-        # Step 5: Eigen-decomposition of Laplacian
-        eigvals, eigvecs = eigh(L)  # ascending order
-
-        # Step 6: Use the smallest non-trivial eigenvectors (e.g., from index 1)
-        eigvec_row = torch.from_numpy(
-            eigvecs[:, 1 : 1 + int(args.num_options / 2)].T
-        ).float()  # shape: [k, n]
-        eig_vec_row = torch.cat([eigvec_row, -eigvec_row], dim=0)
-        eigenvectors = eig_vec_row.numpy()  # shape: [num_options, n]
-
+        eigenvectors = None
     else:
         raise NotImplementedError(f"Mode {args.intrinsic_reward_mode} not supported.")
 

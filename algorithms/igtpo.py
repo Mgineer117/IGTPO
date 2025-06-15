@@ -82,7 +82,7 @@ class IntrinsicRewardFunctions(nn.Module):
                 next_feature, _ = self.extractor(next_states)
 
                 difference = next_feature - feature
-                intrinsic_rewards = difference[:, i]
+                intrinsic_rewards = difference[:, i].unsqueeze(-1)
             source = "allo"
 
         elif self.intrinsic_reward_mode == "drnd":
@@ -194,10 +194,11 @@ class IntrinsicRewardFunctions(nn.Module):
     def define_eigenvectors(self):
         # === Define eigenvectors === #
         eigenvectors, heatmaps = get_vector(self.env, self.extractor, self.args)
-        self.eigenvectors = torch.from_numpy(eigenvectors).to(self.args.device)
-        self.reward_rms = []
-        for _ in range(self.eigenvectors.shape[0]):
-            self.reward_rms.append(RunningMeanStd(shape=(1,)))
+        if eigenvectors is not None:
+            self.eigenvectors = torch.from_numpy(eigenvectors).to(self.args.device)
+            self.reward_rms = []
+            for _ in range(self.eigenvectors.shape[0]):
+                self.reward_rms.append(RunningMeanStd(shape=(1,)))
         self.logger.write_images(
             step=self.current_timesteps, images=heatmaps, logdir="Image/Heatmaps"
         )
@@ -205,7 +206,7 @@ class IntrinsicRewardFunctions(nn.Module):
     def define_allo(self):
         if not os.path.exists("model"):
             os.makedirs("model")
-        model_path = f"model/{self.args.env_name}-feature_network.pth"
+        model_path = f"model/{self.args.env_name}-{self.args.intrinsic_reward_mode}-feature_network.pth"
         extractor = get_extractor(self.args)
 
         if not os.path.exists(model_path):

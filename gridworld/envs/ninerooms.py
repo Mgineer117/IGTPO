@@ -42,7 +42,7 @@ class NineRooms(MultiGridEnv):
         self,
         grid_type: int = 0,
         max_steps: int = 100,
-        num_random_agent: int = 2,
+        num_random_agent: int = 0,
         highlight_visible_cells: bool = False,
         tile_size: int = 10,
         state_representation: str = "tensor",
@@ -430,7 +430,9 @@ class NineRooms(MultiGridEnv):
             )
         return obs
 
-    def get_rewards_heatmap(self, extractor: torch.nn.Module, eigenvectors: np.ndarray):
+    def get_rewards_heatmap(
+        self, extractor: torch.nn.Module, eigenvectors: np.ndarray | None
+    ):
         assert self.state_representation in [
             "vectorized_tensor",
             "tensor",
@@ -440,6 +442,7 @@ class NineRooms(MultiGridEnv):
         empty_idx = 1
         goal_idx = 8
         agent_idx = 10
+        obs_idx = 13
         wall_idx = 2
 
         # Get base state
@@ -451,32 +454,49 @@ class NineRooms(MultiGridEnv):
         if self.state_representation != "tensor":
             state = state.reshape(self.width, self.height, -1)
 
-        mask = (state != wall_idx) & (state != goal_idx)
-        non_mask = ~mask
+        grid = state
+        mask = (grid != wall_idx) & (grid != goal_idx)
+
+        # Get coordinates where agent can be placed
+        valid_coords = np.argwhere(mask)  # shape: [num_valid, 2]
+
+        # Generate a batch of states
+        state_batch = []
+        for coord in valid_coords:
+            new_grid = grid.copy()
+            new_grid[new_grid[..., 0] == agent_idx] = empty_idx
+            new_grid[coord[0], coord[1], 0] = agent_idx
+
+            state_batch.append(new_grid)
+
+        # Stack the batch: shape = [num_valid, H, W] or [num_valid, H, W, C]
+        state_batch = np.stack(state_batch)
 
         heatmaps = []
+        num_eigenvectors = (
+            eigenvectors.shape[0] if eigenvectors is not None else extractor.d
+        )
         grid_shape = (self.width, self.height, 1)
-        for n in range(eigenvectors.shape[0]):
-            eig = eigenvectors[n]
-            reward_map = np.full(grid_shape, fill_value=np.nan)
+        for n in range(num_eigenvectors):
+            reward_map = np.full(grid_shape, fill_value=0.0)
 
-            for i in range(grid_shape[0]):
-                for j in range(grid_shape[1]):
-                    current_idx = (i, j, 0)
-                    current_val = state[current_idx]
-
-                    if current_val == wall_idx or current_val == goal_idx:
-                        reward_map[current_idx] = 0.0
-                    else:
-                        # Copy and manipulate state
-                        state_copy = np.copy(state)
-                        state_copy[current_idx] = agent_idx
-                        with torch.no_grad():
-                            feature, _ = extractor(state_copy)
+            for state in state_batch:
+                agent_pos = np.argwhere(state == agent_idx)[0]
+                # agent_pos = [x, y, 0]
+                x, y = agent_pos[0], agent_pos[1]
+                if extractor.name == "EigenOption":
+                    with torch.no_grad():
+                        feature, _ = extractor(state)
                         feature = feature.cpu().numpy().squeeze(0)
+                        reward = np.dot(eigenvectors[n], feature)
+                elif extractor.name == "ALLO":
+                    with torch.no_grad():
+                        eigenvector, _ = extractor(state)
+                        reward = eigenvector[0, n].cpu().numpy()
+                else:
+                    raise NotImplementedError
 
-                        reward = np.dot(eig, feature)
-                        reward_map[current_idx] = reward
+                reward_map[x, y, 0] = reward
 
             # reward_map = # normalize between -1 to 1
             pos_mask = np.logical_and(mask, (reward_map > 0))
@@ -505,7 +525,7 @@ class NineRooms(MultiGridEnv):
                     ) - 1.0
 
             # Set all other entries (walls, empty) to 0
-            reward_map = reward_map.reshape(self.width, self.height, -1)
+
             reward_map = self.reward_map_to_rgb(reward_map, mask)
 
             # set color theme as blue and red (blue = -1 and red = 1)

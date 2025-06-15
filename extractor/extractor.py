@@ -52,7 +52,7 @@ class Extractor(Base):
         super(Extractor, self).__init__()
 
         ### constants
-        self.name = "Extractor"
+        self.name = "EigenOption"
         self.epochs = epochs
 
         ### trainable parameters
@@ -184,17 +184,18 @@ class Extractor(Base):
 class ALLO(Extractor):
     def __init__(self, d, orth_lambda=1.0, graph_lambda=1.0, **kwargs):
         super(ALLO, self).__init__(**kwargs)
+        self.name = "ALLO"
         self.d = d
         self.orth_lambda = orth_lambda
         self.graph_lambda = graph_lambda
 
         self.lr_duals = 1e-4
         self.lr_dual_velocities = 0.1
-        self.lr_barrier_coeff = 1.0
+        self.lr_barrier_coeff = 1e-2
         self.use_barrier_for_duals = 0
         self.min_duals = 0.0
         self.max_duals = 100.0
-        self.barrier_increase_rate = 0.01
+        self.barrier_increase_rate = 0.1
         self.min_barrier_coefs = 0
         self.max_barrier_coefs = 10000
 
@@ -240,23 +241,33 @@ class ALLO(Extractor):
         graph_loss = graph_loss_vec.sum()  # scalar
 
         # Orthogonality loss
-        permuted_indices = torch.randperm(n)
-        next_phi_permuted = next_phi[permuted_indices]
-        phi_permuted = phi[permuted_indices]
+        perm1 = torch.randperm(n)
+        perm2 = torch.randperm(n)
 
-        inner_product_matrix_1 = (phi_permuted.T @ phi_permuted) / n  # [d,d]
-        inner_product_matrix_2 = (next_phi_permuted.T @ next_phi_permuted) / n  # [d,d]
+        phi_permuted = phi[perm1]
+        next_phi_permuted = next_phi[perm2]
+
+        inner_product_matrix_1 = (phi_permuted.T @ phi_permuted.detach()) / n  # [d,d]
+        inner_product_matrix_2 = (
+            next_phi_permuted.T @ next_phi_permuted.detach()
+        ) / n  # [d,d]
 
         identity = torch.eye(d, device=phi.device)
         error_matrix_1 = torch.tril(inner_product_matrix_1 - identity)
         error_matrix_2 = torch.tril(inner_product_matrix_2 - identity)
-        error_matrix = 0.5 * (error_matrix_1 + error_matrix_2)
-        quadratic_error_matrix = error_matrix_1 * error_matrix_2
+        error_matrix = 0.5 * (
+            error_matrix_1 + error_matrix_2
+        )  # This is your (⟨uj, Juk⟩ - δjk)
+
+        # === CORRECTED LINE FOR QUADRATIC ERROR ===
+        # quadratic_error_matrix = error_matrix_1 * error_matrix_2
+        quadratic_error_matrix = error_matrix**2  # elementwise square
 
         # Orthogonality dual loss
         dual_loss = (self.dual_variables.detach() * error_matrix).sum()
 
         # Barrier loss penalizing squared errors weighted by barrier coefficients
+        # Use the correctly calculated quadratic_error_for_barrier
         barrier_loss = (
             self.barrier_coeffs[0, 0].detach() * quadratic_error_matrix
         ).sum()
@@ -265,6 +276,7 @@ class ALLO(Extractor):
         loss = self.graph_lambda * graph_loss + self.orth_lambda * (
             dual_loss + barrier_loss
         )
+        # print(barrier_loss)
 
         # Optimize
         self.optimizer.zero_grad()
@@ -286,7 +298,6 @@ class ALLO(Extractor):
             updated_duals = torch.clamp(
                 updated_duals, min=self.min_duals, max=self.max_duals
             )
-            self.dual_variables.copy_(torch.tril(updated_duals))
 
             delta = updated_duals - self.dual_variables
             norm_vel = torch.norm(self.dual_velocities)
@@ -300,6 +311,7 @@ class ALLO(Extractor):
             )
             update_rate = init_coeff + (1 - init_coeff) * self.lr_dual_velocities
             self.dual_velocities += update_rate * (delta - self.dual_velocities)
+            self.dual_variables.copy_(torch.tril(updated_duals))
 
         # === Update barrier coefficients (matrix) ===
         with torch.no_grad():

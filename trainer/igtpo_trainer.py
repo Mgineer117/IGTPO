@@ -66,7 +66,7 @@ class IGTPOTrainer:
         self.timesteps = timesteps
 
         self.log_interval = log_interval
-        self.prune_interval = int((self.timesteps / 2) / self.policy.num_rewards)
+        self.prune_interval = int(self.timesteps / self.policy.num_rewards)
         self.trim_interval = int(self.timesteps / (self.policy.num_inner_updates - 2))
         self.eval_interval = int(self.timesteps / self.log_interval)
 
@@ -132,7 +132,7 @@ class IGTPOTrainer:
                     # Manual logging
                     fig, ax = plt.subplots(figsize=(8, 6))
                     ax.stem(
-                        np.arange(len(self.policy.probability_history)),
+                        np.array([int(x) for x in self.policy.contributing_indices]),
                         self.policy.probability_history,
                     )
 

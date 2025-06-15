@@ -24,7 +24,9 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name ninerooms-v0 --project igtpo -
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name ninerooms-v0 --project igtpo --algo-name psne & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms-v0 --project igtpo --algo-name drndppo & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms-v0 --project igtpo --algo-name eigenoption & 
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms-v0 --project igtpo --algo-name igtpo & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms-v0 --project igtpo --algo-name igtpo --intrinsic-reward-mode all & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms-v0 --project igtpo --algo-name igtpo --intrinsic-reward-mode drnd & 
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name ninerooms-v0 --project igtpo --algo-name igtpo --intrinsic-reward-mode eigenpurpose & 
 
 # === Wait for all background jobs to finish ===
 wait
