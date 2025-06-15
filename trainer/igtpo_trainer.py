@@ -107,9 +107,9 @@ class IGTPOTrainer:
                 pbar.update(timesteps)
 
                 # === reduce target_kl === #
-                self.policy.lr_scheduler(
-                    current_step / (self.timesteps + self.init_timesteps)
-                )
+                # self.policy.lr_scheduler(
+                #     current_step / (self.timesteps + self.init_timesteps)
+                # )
 
                 # === PRUNE TWIG === #
                 if current_step > self.prune_interval * (prune_idx + 1):

@@ -10,7 +10,7 @@ from policy.ppo import PPO_Learner
 from policy.uniform_random import UniformRandom
 from trainer.eigenoption_trainer import EigenOptionTrainer
 from trainer.extractor_trainer import ExtractorTrainer
-from utils.rl import get_extractor, get_vector
+from utils.rl import IntrinsicRewardFunctions, get_extractor, get_vector
 from utils.sampler import HLSampler, OnlineSampler
 
 
@@ -24,6 +24,10 @@ class EigenOption(nn.Module):
         self.writer = writer
         self.args = args
 
+        self.intrinsic_reward_fn = IntrinsicRewardFunctions(
+            env=env, logger=logger, writer=writer, reward_mode="eigenpurpose", args=args
+        )
+
         self.args.nupdates = args.timesteps // (
             args.minibatch_size * args.num_minibatch
         )
@@ -34,10 +38,6 @@ class EigenOption(nn.Module):
         self.current_timesteps = 0
 
     def begin_training(self):
-        # === Define extractor === #
-        self.define_extractor()
-        self.define_eigenvectors()
-
         # === Define policy === #
         self.define_policy()
 
@@ -63,8 +63,7 @@ class EigenOption(nn.Module):
             env=self.env,
             hl_policy=self.hl_policy,
             policies=self.policies,
-            extractor=self.extractor,
-            eigenvectors=self.eigenvectors,
+            intrinsic_reward_fn=self.intrinsic_reward_fn,
             hl_sampler=hl_sampler,
             sampler=sampler,
             logger=self.logger,
@@ -81,50 +80,6 @@ class EigenOption(nn.Module):
         # design hl_policy and hl_sampler and trainer
 
         trainer.train()
-
-    def define_extractor(self):
-        # if model directory does not exist, create it
-        if not os.path.exists("model"):
-            os.makedirs("model")
-        model_path = f"model/{self.args.env_name}-eigenpurpose-feature_network.pth"
-        extractor = get_extractor(self.args)
-
-        self.uniform_random_policy = UniformRandom(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            is_discrete=self.args.is_discrete,
-            device=self.args.device,
-        )
-
-        if not os.path.exists(model_path):
-            sampler = OnlineSampler(
-                state_dim=self.args.state_dim,
-                action_dim=self.args.action_dim,
-                episode_len=self.args.episode_len,
-                batch_size=16384,
-                verbose=False,
-            )
-            trainer = ExtractorTrainer(
-                env=self.env,
-                random_policy=self.uniform_random_policy,
-                extractor=extractor,
-                sampler=sampler,
-                logger=self.logger,
-                writer=self.writer,
-                epochs=self.args.extractor_epochs,
-                batch_size=self.args.batch_size,
-            )
-            final_timesteps = trainer.train()
-            torch.save(extractor.state_dict(), model_path)
-
-            self.current_timesteps += final_timesteps
-        else:
-            extractor.load_state_dict(
-                torch.load(model_path, map_location=self.args.device)
-            )
-            extractor.to(self.args.device)
-
-        self.extractor = extractor
 
     def define_policy(self):
         # === Define policy === #
@@ -149,7 +104,7 @@ class EigenOption(nn.Module):
                 eps_clip=self.args.eps_clip,
                 entropy_scaler=self.args.entropy_scaler,
                 target_kl=self.args.target_kl,
-                gamma=self.args.gamma,
+                gamma=1.0,  # gamma for option is 1 to find maxima
                 gae=self.args.gae,
                 K=self.args.K_epochs,
                 device=self.args.device,
@@ -157,7 +112,14 @@ class EigenOption(nn.Module):
             policy.name = "EigenOptionPolicy"
             self.policies.append(policy)
 
-        self.policies.append(self.uniform_random_policy)
+        uniform_random_policy = UniformRandom(
+            state_dim=self.args.state_dim,
+            action_dim=self.args.action_dim,
+            is_discrete=self.args.is_discrete,
+            device=self.args.device,
+        )
+
+        self.policies.append(uniform_random_policy)
 
         actor = PPO_Actor(
             input_dim=self.args.state_dim,
@@ -183,11 +145,4 @@ class EigenOption(nn.Module):
             gae=self.args.gae,
             K=self.args.K_epochs,
             device=self.args.device,
-        )
-
-    def define_eigenvectors(self):
-        # === Define eigenvectors === #
-        self.eigenvectors, heatmaps = get_vector(self.env, self.extractor, self.args)
-        self.logger.write_images(
-            step=self.current_timesteps, images=heatmaps, logdir="Image/Heatmaps"
         )

@@ -1,10 +1,10 @@
 {
     "extractor_epochs": 0,
-    "timesteps": 2e7,
+    "timesteps": 1e7,
     "eps_clip": 0.2,
     "K_epochs": 5,
     "num_inner_updates": 20,
-    "target_kl": 0.03,
+    "target_kl": 0.01,
     "num_options": 4,
     "num_minibatch": 4,
     "minibatch_size": 4096,

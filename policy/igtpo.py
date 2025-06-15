@@ -133,6 +133,8 @@ class IGTPO_Learner(Base):
                     ),
                     dim=0,
                 )
+            if hasattr(self.intrinsic_reward_fn, "reward_rms"):
+                del self.intrinsic_reward_fn.reward_rms[least_contributing_index]
 
             self.probabilities = np.delete(self.probabilities, least_contributing_index)
             self.probability_history = np.delete(
@@ -340,7 +342,7 @@ class IGTPO_Learner(Base):
                     intrinsic_rewards,
                     terminals,
                     intrinsic_values,
-                    gamma=self.gamma,
+                    gamma=1.0,
                     gae=self.gae,
                 )
 

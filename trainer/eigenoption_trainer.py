@@ -37,8 +37,7 @@ class EigenOptionTrainer:
         env: gym.Env,
         hl_policy: Base,
         policies: Base,
-        extractor: nn.Module,
-        eigenvectors: torch.Tensor,
+        intrinsic_reward_fn,
         hl_sampler: OnlineSampler,
         sampler: OnlineSampler,
         logger: WandbLogger,
@@ -54,10 +53,10 @@ class EigenOptionTrainer:
         self.env = env
         self.hl_policy = hl_policy
         self.policies = policies
-        self.extractor = extractor
-        self.eigenvectors = eigenvectors
-        self.num_vectors = eigenvectors.shape[0]
-        self.num_vector_names = [f"{i}" for i in range(self.num_vectors)]
+
+        self.intrinsic_reward_fn = intrinsic_reward_fn
+
+        self.num_vectors = len(self.policies) - 1
 
         self.hl_sampler = hl_sampler
         self.sampler = sampler
@@ -100,22 +99,29 @@ class EigenOptionTrainer:
                 ):
                     # --- START OF EPOCH/ITERATION ---
                     current_step = pbar.n
-                    self.policies[option_idx].train()
+
+                    policy = self.policies[option_idx]
+                    policy.train()
 
                     # === Initial Iteration ===
                     batch, sample_time = self.sampler.collect_samples(
                         env=self.env,
-                        policy=self.policies[option_idx],
+                        policy=policy,
                         seed=self.seed,
                         random_init_pos=True,
                     )
-                    # Use intrinsic rewards from eigenvectors
-                    batch["rewards"] = self.intrinsic_rewards(
-                        batch, self.eigenvectors[option_idx]
+
+                    # compute the intrinsic rewards
+
+                    states, next_states = batch["states"], batch["next_states"]
+                    states = torch.from_numpy(states).to(policy.device)
+                    next_states = torch.from_numpy(next_states).to(policy.device)
+
+                    intrinsic_rewards, _ = self.intrinsic_reward_fn(
+                        states, next_states, option_idx
                     )
-                    loss_dict, timesteps, update_time = self.policies[option_idx].learn(
-                        batch
-                    )
+                    batch["rewards"] = intrinsic_rewards.cpu().numpy()
+                    loss_dict, timesteps, update_time = policy.learn(batch)
 
                     # add timesteps
                     current_step += timesteps
@@ -299,23 +305,6 @@ class EigenOptionTrainer:
         }
 
         return eval_dict, image_array
-
-    def intrinsic_rewards(self, batch, eigenvector):
-        states = batch["states"]
-        next_states = batch["next_states"]
-
-        # get features
-        with torch.no_grad():
-            feature, _ = self.extractor(states)
-            next_feature, _ = self.extractor(next_states)
-
-            difference = next_feature - feature
-            difference = difference.cpu().numpy()
-
-        # Calculate the intrinsic reward using the eigenvector
-        intrinsic_rewards = np.matmul(difference, eigenvector[:, np.newaxis])
-
-        return intrinsic_rewards
 
     def discounted_return(self, rewards, gamma):
         G = 0
