@@ -78,7 +78,7 @@ class IntrinsicRewardFunctions(nn.Module):
                 intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
             source = "drnd"
         elif self.intrinsic_reward_mode == "all":
-            if i < self.num_rewards - 1:
+            if i <= self.eigenvectors.shape[0] - 1:
                 # get features
                 with torch.no_grad():
                     feature, _ = self.extractor(states)

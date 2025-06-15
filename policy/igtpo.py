@@ -141,7 +141,6 @@ class IGTPO_Learner(Base):
                 self.probability_history, least_contributing_index
             )
             self.num_rewards -= 1
-            self.intrinsic_reward_fn.num_rewards -= 1
 
     def trim(self):
         if self.num_inner_updates > 2:
