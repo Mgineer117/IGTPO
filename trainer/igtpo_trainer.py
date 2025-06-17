@@ -66,7 +66,9 @@ class IGTPOTrainer:
         self.timesteps = timesteps
 
         self.log_interval = log_interval
-        self.prune_interval = int(self.timesteps / self.policy.num_rewards)
+        self.prune_interval = int(
+            self.timesteps / self.policy.intrinsic_reward_fn.num_rewards
+        )
         self.trim_interval = int(self.timesteps / (self.policy.num_inner_updates - 2))
         self.eval_interval = int(self.timesteps / self.log_interval)
 

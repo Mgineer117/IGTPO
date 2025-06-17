@@ -464,9 +464,8 @@ def get_vector(env, extractor, args):
         device=args.device,
     )
 
-    batch, _ = sampler.collect_samples(env, uniform_random_policy, args.seed)
-
     if args.intrinsic_reward_mode in ("eigenpurpose", "all"):
+        batch, _ = sampler.collect_samples(env, uniform_random_policy, args.seed)
         states = torch.from_numpy(batch["states"]).to(args.device)
         with torch.no_grad():
             features, _ = extractor(states)
