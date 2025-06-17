@@ -62,9 +62,11 @@ class IntrinsicRewardFunctions(nn.Module):
                 self.num_rewards = len(self.sources)
             elif source == "drnd":
                 del self.sources[i]
+                self.num_rewards = len(self.sources)
             elif source == "allo":
                 del self.sources[i]
                 self.feature_mask = np.delete(self.feature_mask, i)
+                self.num_rewards = len(self.sources)
 
     def forward(self, states: torch.Tensor, next_states: torch.Tensor, i: int):
         if self.sources[i] == "eigenpurpose":

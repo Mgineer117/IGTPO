@@ -1,6 +1,6 @@
 {
     "extractor_epochs": 10000,
-    "timesteps": 1.5e7,
+    "timesteps": 2e7,
     "extractor_type": "CNN",
     "feature_dim": 32,
     "eps_clip": 0.2,
