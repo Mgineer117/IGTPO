@@ -9,7 +9,6 @@ from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from policy.ppo import PPO_Learner
 from policy.uniform_random import UniformRandom
 from trainer.eigenoption_trainer import EigenOptionTrainer
-from trainer.extractor_trainer import ExtractorTrainer
 from utils.rl import IntrinsicRewardFunctions, get_extractor, get_vector
 from utils.sampler import HLSampler, OnlineSampler
 

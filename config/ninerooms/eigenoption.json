@@ -1,9 +1,9 @@
 {
     "extractor_epochs": 10000,
-    "hl_timesteps": 6e6,
-    "timesteps": 5e5,
+    "hl_timesteps": 7e6,
+    "timesteps": 1e6,
     "extractor_type": "CNN",
-    "feature_dim": 64,
+    "feature_dim": 32,
     "eps_clip": 0.2,
     "K_epochs": 5,
     "target_kl": 0.01,

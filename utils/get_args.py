@@ -81,10 +81,10 @@ def get_args():
         "--eps-clip", type=float, default=None, help="Base learning rate."
     )
     parser.add_argument(
-        "--actor-fc-dim", type=list, default=[64, 64], help="Base learning rate."
+        "--actor-fc-dim", type=list, default=[256, 256], help="Base learning rate."
     )
     parser.add_argument(
-        "--critic-fc-dim", type=list, default=[64, 64], help="Base learning rate."
+        "--critic-fc-dim", type=list, default=[256, 256], help="Base learning rate."
     )
     parser.add_argument(
         "--feature-dim", type=int, default=None, help="Base learning rate."

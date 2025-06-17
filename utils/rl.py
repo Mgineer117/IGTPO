@@ -26,22 +26,48 @@ class IntrinsicRewardFunctions(nn.Module):
             self.define_extractor()
             self.define_eigenvectors()
             self.num_rewards = self.args.num_options
+            self.sources = ["eigenpurpose" for _ in range(self.num_rewards)]
         elif self.intrinsic_reward_mode == "allo":
             self.define_allo()
             self.define_eigenvectors()
+            self.feature_mask = np.arange(self.args.num_options)
             self.num_rewards = self.args.num_options
+            self.sources = ["allo" for _ in range(self.num_rewards)]
         elif self.intrinsic_reward_mode == "drnd":
             self.define_drnd_policy()
             self.num_rewards = 1
+            self.sources = ["drnd"]
         elif self.intrinsic_reward_mode == "all":
             # eigenpurpose + drnd
             self.define_extractor()
             self.define_eigenvectors()
             self.define_drnd_policy()
             self.num_rewards = self.args.num_options + 1
+            self.sources = ["eigenpurpose" for _ in range(self.args.num_options)]
+            self.sources.append("drnd")
+
+    def prune(self, i: int):
+        if self.num_rewards > 1:
+            source = self.sources[i]
+            if source == "eigenpurpose":
+                self.eigenvectors = torch.cat(
+                    (
+                        self.eigenvectors[:i],
+                        self.eigenvectors[i + 1 :],
+                    ),
+                    dim=0,
+                )
+                del self.reward_rms[i]
+                del self.sources[i]
+                self.num_rewards = len(self.sources)
+            elif source == "drnd":
+                del self.sources[i]
+            elif source == "allo":
+                del self.sources[i]
+                self.feature_mask = np.delete(self.feature_mask, i)
 
     def forward(self, states: torch.Tensor, next_states: torch.Tensor, i: int):
-        if self.intrinsic_reward_mode == "eigenpurpose":
+        if self.sources[i] == "eigenpurpose":
             # get features
             with torch.no_grad():
                 feature, _ = self.extractor(states)
@@ -61,51 +87,19 @@ class IntrinsicRewardFunctions(nn.Module):
                 dtype=intrinsic_rewards.dtype,
             )
             intrinsic_rewards = intrinsic_rewards / (torch.sqrt(var_tensor) + 1e-8)
-
-            source = "eigenpurpose"
-
-        elif self.intrinsic_reward_mode == "allo":
+        elif self.sources[i] == "allo":
             with torch.no_grad():
                 feature, _ = self.extractor(states)
                 next_feature, _ = self.extractor(next_states)
 
                 difference = next_feature - feature
+                difference = difference[:, self.feature_mask]
                 intrinsic_rewards = difference[:, i].unsqueeze(-1)
-            source = "allo"
-
-        elif self.intrinsic_reward_mode == "drnd":
+        elif self.sources[i] == "drnd":
             with torch.no_grad():
                 intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
-            source = "drnd"
-        elif self.intrinsic_reward_mode == "all":
-            if i <= self.eigenvectors.shape[0] - 1:
-                # get features
-                with torch.no_grad():
-                    feature, _ = self.extractor(states)
-                    next_feature, _ = self.extractor(next_states)
 
-                    difference = next_feature - feature
-
-                # Calculate the intrinsic reward using the eigenvector
-                intrinsic_rewards = torch.matmul(
-                    difference, self.eigenvectors[i].unsqueeze(-1)
-                ).to(self.args.device)
-                self.reward_rms[i].update(intrinsic_rewards.cpu().numpy())
-
-                var_tensor = torch.as_tensor(
-                    self.reward_rms[i].var,
-                    device=intrinsic_rewards.device,
-                    dtype=intrinsic_rewards.dtype,
-                )
-                intrinsic_rewards = intrinsic_rewards / (torch.sqrt(var_tensor) + 1e-8)
-
-                source = "eigenpurpose"
-            else:
-                with torch.no_grad():
-                    intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
-                source = "drnd"
-
-        return intrinsic_rewards, source
+        return intrinsic_rewards, self.sources[i]
 
     def learn(
         self, states: torch.Tensor, next_states: torch.Tensor, i: int, keyword: str
@@ -157,7 +151,7 @@ class IntrinsicRewardFunctions(nn.Module):
                 state_dim=self.args.state_dim,
                 action_dim=self.args.action_dim,
                 episode_len=self.args.episode_len,
-                batch_size=16384,
+                batch_size=50000,
                 verbose=False,
             )
             trainer = ExtractorTrainer(
@@ -168,7 +162,6 @@ class IntrinsicRewardFunctions(nn.Module):
                 logger=self.logger,
                 writer=self.writer,
                 epochs=self.args.extractor_epochs,
-                batch_size=self.args.batch_size,
             )
             final_timesteps = trainer.train()
             torch.save(extractor.state_dict(), model_path)
@@ -216,7 +209,7 @@ class IntrinsicRewardFunctions(nn.Module):
                 state_dim=self.args.state_dim,
                 action_dim=self.args.action_dim,
                 episode_len=self.args.episode_len,
-                batch_size=16384,
+                batch_size=50000,
                 verbose=False,
             )
             trainer = ExtractorTrainer(
@@ -227,7 +220,6 @@ class IntrinsicRewardFunctions(nn.Module):
                 logger=self.logger,
                 writer=self.writer,
                 epochs=self.args.extractor_epochs,
-                batch_size=self.args.batch_size,
             )
             final_timesteps = trainer.train()
             torch.save(extractor.state_dict(), model_path)
@@ -425,7 +417,7 @@ def get_extractor(args):
                 network=feature_network,
                 extractor_lr=args.extractor_lr,
                 epochs=args.extractor_epochs,
-                minibatch_size=args.minibatch_size,
+                batch_size=1024,
                 device=args.device,
             )
         elif args.intrinsic_reward_mode in ("eigenpurpose", "all"):
@@ -433,7 +425,7 @@ def get_extractor(args):
                 network=feature_network,
                 extractor_lr=args.extractor_lr,
                 epochs=args.extractor_epochs,
-                minibatch_size=args.minibatch_size,
+                batch_size=1024,
                 device=args.device,
             )
         else:

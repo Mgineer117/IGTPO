@@ -480,19 +480,18 @@ class NineRooms(MultiGridEnv):
         for n in range(num_eigenvectors):
             reward_map = np.full(grid_shape, fill_value=0.0)
 
-            for state in state_batch:
-                agent_pos = np.argwhere(state == agent_idx)[0]
-                # agent_pos = [x, y, 0]
+            with torch.no_grad():
+                features, _ = extractor(state_batch)
+                features = features.cpu().numpy()
+
+            for i in range(features.shape[0]):
+                agent_pos = np.argwhere(state_batch[i] == agent_idx)[0]
                 x, y = agent_pos[0], agent_pos[1]
+
                 if extractor.name == "EigenOption":
-                    with torch.no_grad():
-                        feature, _ = extractor(state)
-                        feature = feature.cpu().numpy().squeeze(0)
-                        reward = np.dot(eigenvectors[n], feature)
+                    reward = np.dot(eigenvectors[n], features[i, :])
                 elif extractor.name == "ALLO":
-                    with torch.no_grad():
-                        eigenvector, _ = extractor(state)
-                        reward = eigenvector[0, n].cpu().numpy()
+                    reward = features[i, n]
                 else:
                     raise NotImplementedError
 

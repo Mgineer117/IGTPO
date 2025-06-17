@@ -26,7 +26,6 @@ class ExtractorTrainer:
         logger: WandbLogger,
         writer: SummaryWriter,
         epochs: int = 1e6,
-        batch_size: int = 1024,
         seed: int = 0,
     ) -> None:
         self.env = env
@@ -39,7 +38,6 @@ class ExtractorTrainer:
 
         # training parameters
         self.epochs = epochs
-        self.batch_size = batch_size
 
         # initialize the essential training components
         self.last_min_loss = 1e10
@@ -52,15 +50,13 @@ class ExtractorTrainer:
         self.loss_list = deque(maxlen=5)
 
         # Collect initial data
+        random_init_pos = True if self.extractor.name == "EigenOption" else False
         batch, _ = self.sampler.collect_samples(
-            env=self.env, policy=self.policy, seed=self.seed, random_init_pos=True
+            env=self.env,
+            policy=self.policy,
+            seed=self.seed,
+            random_init_pos=random_init_pos,
         )
-
-        states = batch["states"]
-        actions = batch["actions"]
-        next_states = batch["next_states"]
-
-        num_samples = states.shape[0]
 
         # Train loop
         step = 0
@@ -72,14 +68,8 @@ class ExtractorTrainer:
             while pbar.n < self.epochs:
                 step = pbar.n + 1  # + 1 to avoid zero division
 
-                indices = torch.randperm(num_samples)[: self.batch_size]
-
-                mb_states = states[indices]
-                mb_actions = actions[indices]
-                mb_next_states = next_states[indices]
-
                 loss_dict, timesteps, comparing_img, update_time = self.extractor.learn(
-                    mb_states, mb_actions, mb_next_states
+                    batch
                 )
 
                 # Calculate expected remaining time
