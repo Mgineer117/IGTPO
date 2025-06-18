@@ -12,3 +12,4 @@ tqdm
 wandb
 scipy
 pyrender
+scikit-learn

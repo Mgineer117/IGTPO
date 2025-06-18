@@ -45,7 +45,7 @@ class NineRooms(MultiGridEnv):
         num_random_agent: int = 0,
         highlight_visible_cells: bool = False,
         tile_size: int = 10,
-        state_representation: str = "tensor",
+        state_representation: str = "positional",
         render_mode: Literal["human", "rgb_array"] = "rgb_array",
     ):
         self.state_representation = state_representation
@@ -180,6 +180,12 @@ class NineRooms(MultiGridEnv):
             tile_size=tile_size,
         )
 
+    def get_grid(self):
+        self.reset()
+        grid = self.grid.encode()
+        self.close()
+        return grid
+
     def _set_observation_space(self) -> spaces.Dict | spaces.Box:
         match self.state_representation:
             case "positional":
@@ -194,7 +200,7 @@ class NineRooms(MultiGridEnv):
             case "tensor":
                 observation_space = spaces.Box(
                     low=0,
-                    high=10,
+                    high=13,
                     shape=(self.width, self.height, self.world.encode_dim),
                     dtype=np.int64,
                 )
@@ -431,11 +437,12 @@ class NineRooms(MultiGridEnv):
         return obs
 
     def get_rewards_heatmap(
-        self, extractor: torch.nn.Module, eigenvectors: np.ndarray | None
+        self, extractor: torch.nn.Module, eigenvectors: np.ndarray | list
     ):
         assert self.state_representation in [
             "vectorized_tensor",
             "tensor",
+            "positional",
         ], f"Unsupported state representation: {self.state_representation}"
 
         # Environment indices
@@ -446,15 +453,11 @@ class NineRooms(MultiGridEnv):
         wall_idx = 2
 
         # Get base state
-        state, _ = self.reset()
+        state = self.get_grid()
         agent_pos = np.where(state == agent_idx)
         state[agent_pos] = empty_idx
-        self.close()
-
-        if self.state_representation != "tensor":
-            state = state.reshape(self.width, self.height, -1)
-
         grid = state
+
         mask = (grid != wall_idx) & (grid != goal_idx)
 
         # Get coordinates where agent can be placed
@@ -463,21 +466,22 @@ class NineRooms(MultiGridEnv):
         # Generate a batch of states
         state_batch = []
         for coord in valid_coords:
-            new_grid = grid.copy()
-            new_grid[new_grid[..., 0] == agent_idx] = empty_idx
-            new_grid[coord[0], coord[1], 0] = agent_idx
+            if self.state_representation in ("tensor", "vectorized_tensor"):
+                new_grid = grid.copy()
+                new_grid[new_grid[..., 0] == agent_idx] = empty_idx
+                new_grid[coord[0], coord[1], 0] = agent_idx
 
-            state_batch.append(new_grid)
+                state_batch.append(new_grid)
+            elif self.state_representation == "positional":
+                state = np.array([coord[0], coord[1]])
+                state_batch.append(state)
 
         # Stack the batch: shape = [num_valid, H, W] or [num_valid, H, W, C]
         state_batch = np.stack(state_batch)
 
         heatmaps = []
-        num_eigenvectors = (
-            eigenvectors.shape[0] if eigenvectors is not None else extractor.d
-        )
         grid_shape = (self.width, self.height, 1)
-        for n in range(num_eigenvectors):
+        for n in range(len(eigenvectors)):
             reward_map = np.full(grid_shape, fill_value=0.0)
 
             with torch.no_grad():
@@ -485,13 +489,17 @@ class NineRooms(MultiGridEnv):
                 features = features.cpu().numpy()
 
             for i in range(features.shape[0]):
-                agent_pos = np.argwhere(state_batch[i] == agent_idx)[0]
+                if self.state_representation in ("tensor", "vectorized_tensor"):
+                    agent_pos = np.argwhere(state_batch[i] == agent_idx)[0]
+                elif self.state_representation == "positional":
+                    agent_pos = [state_batch[i][0], state_batch[i][1]]
                 x, y = agent_pos[0], agent_pos[1]
 
                 if extractor.name == "EigenOption":
                     reward = np.dot(eigenvectors[n], features[i, :])
                 elif extractor.name == "ALLO":
-                    reward = features[i, n]
+                    eigenvector_idx, eigenvector_sign = eigenvectors[n]
+                    reward = eigenvector_sign * features[i, eigenvector_idx]
                 else:
                     raise NotImplementedError
 
@@ -524,7 +532,7 @@ class NineRooms(MultiGridEnv):
                     ) - 1.0
 
             # Set all other entries (walls, empty) to 0
-
+            # print(reward_map[:, :, 0])
             reward_map = self.reward_map_to_rgb(reward_map, mask)
 
             # set color theme as blue and red (blue = -1 and red = 1)

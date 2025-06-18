@@ -53,10 +53,10 @@ def run(args, seed, unique_id, exp_time):
         from algorithms.drndppo import DRND_PPO_Algorithm
 
         algo = DRND_PPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
-    elif args.algo_name == "eigenoption":
-        from algorithms.eigenoption import EigenOption
+    elif args.algo_name == "hrl":
+        from algorithms.hrl import HRL
 
-        algo = EigenOption(env=env, logger=logger, writer=writer, args=args)
+        algo = HRL(env=env, logger=logger, writer=writer, args=args)
     else:
         raise NotImplementedError(f"{args.algo_name} is not implemented.")
 

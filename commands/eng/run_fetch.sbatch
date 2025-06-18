@@ -25,7 +25,7 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name fetch-reach --project igtpo --
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name fetch-reach --project igtpo --algo-name trpo & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name fetch-reach --project igtpo --algo-name psne & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name fetch-reach --project igtpo --algo-name drndppo & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name fetch-reach --project igtpo --algo-name eigenoption & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name fetch-reach --project igtpo --algo-name hrl & 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name fetch-reach --project igtpo --algo-name igtpo & 
 
 # === Wait for all background jobs to finish ===

@@ -12,7 +12,7 @@ from policy.value_functions import Critic_Learner, Critics_Learner
 from trainer.base_trainer import Trainer
 from trainer.igtpo_trainer import IGTPOTrainer
 from trainer.metaigtpo_trainer import MetaIGTPOTrainer
-from utils.rl import IntrinsicRewardFunctions, get_extractor, get_vector
+from utils.intrinsic_rewards import IntrinsicRewardFunctions
 from utils.sampler import OnlineSampler
 
 
@@ -30,7 +30,6 @@ class IGTPO_Algorithm(nn.Module):
             env=env,
             logger=logger,
             writer=writer,
-            reward_mode=args.intrinsic_reward_mode,
             args=args,
         )
 

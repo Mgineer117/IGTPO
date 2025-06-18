@@ -126,7 +126,7 @@ class OnlineSampler(Base):
         policy.to_device(torch.device("cpu"))
 
         processes = []
-        queue = mp.Manager().Queue()
+        queue = mp.Queue()
         worker_memories = [None] * self.total_num_worker
         for i in range(self.total_num_worker):
             args = (

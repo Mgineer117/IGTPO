@@ -74,7 +74,7 @@ class CNN(nn.Module):
         )
 
         self.encoder = nn.Sequential(
-            *self.encoder_architecture, nn.Flatten(), self.encoder_fc, nn.Sigmoid()
+            *self.encoder_architecture, nn.Flatten(), self.encoder_fc
         )
 
         ### Decoding module
@@ -101,7 +101,7 @@ class CNN(nn.Module):
         self.decoder = nn.Sequential(
             Reshape(reshape_dim=self.feature_image_dim),
             *self.decoder_architecture,
-            Permute((0, 2, 3, 1))
+            Permute((0, 2, 3, 1)),
         )
 
         self.to(self.device)

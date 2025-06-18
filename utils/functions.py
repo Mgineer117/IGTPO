@@ -29,7 +29,7 @@ def temp_seed(seed, pid):
     random.seed(seed + pid + rand_int)
 
 
-def call_env(args):
+def call_env(args, state_representation: str = "tensor"):
     """
     Call the environment based on the given name.
     """
@@ -43,17 +43,29 @@ def call_env(args):
         if env_name == "fourrooms":
             from gridworld.envs.fourrooms import FourRooms
 
-            env = FourRooms(grid_type=version)
+            env = FourRooms(
+                grid_type=version,
+                state_representation=state_representation,
+                num_random_agent=args.num_random_agents,
+            )
             # args.is_discrete = True
         elif env_name == "maze":
             from gridworld.envs.maze import Maze
 
-            env = Maze(grid_type=version)
+            env = Maze(
+                grid_type=version,
+                state_representation=state_representation,
+                num_random_agent=args.num_random_agents,
+            )
             # args.is_discrete = True
         elif env_name == "ninerooms":
             from gridworld.envs.ninerooms import NineRooms
 
-            env = NineRooms(grid_type=version)
+            env = NineRooms(
+                grid_type=version,
+                state_representation=state_representation,
+                num_random_agent=args.num_random_agents,
+            )
         else:
             raise ValueError(f"Environment {env_name} is not supported.")
 

@@ -13,6 +13,7 @@ from torch.autograd import grad
 
 from policy.layers.base import Base
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
+from utils.intrinsic_rewards import IntrinsicRewardFunctions
 from utils.rl import (
     compute_kl,
     conjugate_gradients,
@@ -24,19 +25,12 @@ from utils.rl import (
 from utils.sampler import OnlineSampler
 
 
-def check_model_params_equal(model1, model2) -> bool:
-    for p1, p2 in zip(model1.parameters(), model2.parameters()):
-        if not torch.equal(p1, p2):
-            return False
-    return True
-
-
 class IGTPO_Learner(Base):
     def __init__(
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
-        intrinsic_reward_fn: nn.Module,
+        intrinsic_reward_fn: IntrinsicRewardFunctions,
         nupdates: int,
         num_inner_updates: int,
         actor_lr: float = 3e-4,
@@ -112,6 +106,7 @@ class IGTPO_Learner(Base):
 
     def prune(self):
         if len(self.probabilities) > 1:
+            # === MEASURE THE PROBABILITY OF EXTRINSIC SIGNALS === #
             if np.any(self.probabilities > 0.0):
                 probabilities = self.probabilities
                 min_prob = np.min(probabilities)
@@ -128,12 +123,14 @@ class IGTPO_Learner(Base):
                 probabilities = self.probability_history
                 least_contributing_index = np.argmin(probabilities)
 
+            # === PRUNE CRITICS === #
             del self.extrinsic_critics[least_contributing_index]
             del self.intrinsic_critics[least_contributing_index]
 
             del self.extrinsic_critic_optimizers[least_contributing_index]
             del self.intrinsic_critic_optimizers[least_contributing_index]
 
+            # === PRUNE ETC. === #
             del self.contributing_indices[least_contributing_index]
 
             self.probabilities = np.delete(self.probabilities, least_contributing_index)
@@ -141,9 +138,8 @@ class IGTPO_Learner(Base):
                 self.probability_history, least_contributing_index
             )
 
+            # === SEND PRUNE SIGNAL TO INTRINSIC REWARD CLASS === #
             self.intrinsic_reward_fn.prune(least_contributing_index)
-
-            self.intrinsic_reward_fn.num_rewards -= 1
 
     def trim(self):
         if self.num_inner_updates > 2:
@@ -216,10 +212,6 @@ class IGTPO_Learner(Base):
                 self.probability_history[i] += batch["rewards"].mean()
                 self.probabilities[i] += batch["rewards"].mean()
 
-                # with torch.no_grad():
-                #     states = self.preprocess_state(batch["states"])
-                #     values = self.extrinsic_critics[i](states)
-                # self.probabilities[i] = values.cpu().numpy().mean()
                 (
                     loss_dict,
                     update_time,
@@ -538,15 +530,17 @@ class IGTPO_Learner(Base):
         old_logprobs: torch.Tensor,
         advantages: torch.Tensor,
     ):
+        # === PPO UPDATE STYLE === #
+        # off-policy correction term should be 1
         _, metaData = actor(states)
         logprobs = actor.log_prob(metaData["dist"], actions)
         entropy = actor.entropy(metaData["dist"])
-        # ratios = torch.exp(logprobs - old_logprobs)
+        ratios = torch.exp(logprobs - old_logprobs)
 
-        # surr1 = ratios * advantages
-        # surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
+        surr1 = ratios * advantages
+        surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
 
-        # actor_loss = -torch.min(surr1, surr2).mean()
+        actor_loss = -torch.min(surr1, surr2).mean()
         actor_loss = -(logprobs * advantages).mean()
         entropy_loss = self.entropy_scaler * entropy.mean()
 

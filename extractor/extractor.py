@@ -34,9 +34,7 @@ class DummyExtractor(Base):
     def decode(self, features: torch.Tensor, actions: torch.Tensor):
         pass
 
-    def learn(
-        self, states: torch.Tensor, actions: torch.Tensor, next_states: torch.Tensor
-    ):
+    def learn(self, batch: dict):
         pass
 
 
@@ -185,10 +183,10 @@ class Extractor(Base):
 
 
 class ALLO(Extractor):
-    def __init__(self, d, orth_lambda=1.0, graph_lambda=1.0, **kwargs):
+    def __init__(self, orth_lambda=1.0, graph_lambda=1.0, **kwargs):
         super(ALLO, self).__init__(**kwargs)
         self.name = "ALLO"
-        self.d = d
+        self.d = kwargs.get("network").feature_dim
         self.orth_lambda = orth_lambda
         self.graph_lambda = graph_lambda
 
@@ -431,6 +429,7 @@ class ALLO(Extractor):
 
         s1 = torch.stack(s1_list).to(device)
         s2 = torch.stack(s2_list).to(device)
+
         return s1, s2
 
     def sample_steps_from_batch(

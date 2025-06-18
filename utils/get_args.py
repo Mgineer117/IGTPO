@@ -54,6 +54,9 @@ def get_args():
     parser.add_argument(
         "--env-name", type=str, default="pointmaze-medium", help="Name of the model."
     )
+    parser.add_argument(
+        "--num-random-agents", type=int, default=0, help="Name of the model."
+    )
     parser.add_argument("--algo-name", type=str, default="ppo", help="Disable cuda.")
     parser.add_argument("--seed", type=int, default=42, help="Batch size.")
     parser.add_argument(
@@ -133,7 +136,7 @@ def get_args():
     parser.add_argument(
         "--intrinsic-reward-mode",
         type=str,
-        default="all",
+        default=None,
         help="Base learning rate.",
     )
     parser.add_argument("--gamma", type=float, default=0.99, help="Base learning rate.")
