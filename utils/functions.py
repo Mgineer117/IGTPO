@@ -147,32 +147,26 @@ def call_env(args, episode_len: int | None = None):
     elif env_name == "pointmaze":
         gym.register_envs(gymnasium_robotics)
 
-        example_map = [
-            [1, 1, 1, 1, 1, 1],
-            [1, "r", 1, "g", 0, 1],
-            [1, 0, 1, 1, 0, 1],
-            [1, 0, 0, 0, 0, 1],
-            [1, 1, 1, 1, 1, 1],
-        ]
-
         if version == "medium":
-            env = gym.make(
-                "PointMaze_UMaze-v3",
-                maze_map=example_map,
-                max_episode_steps=max_steps,
-                continuing_task=False,
-                render_mode="rgb_array",
-            )
-        elif version == "densemedium":
-            env = gym.make(
-                "PointMaze_UMazeDense-v3",
-                maze_map=example_map,
-                max_episode_steps=max_steps,
-                continuing_task=False,
-                render_mode="rgb_array",
-            )
+            example_map = [
+                [1, 1, 1, 1, 1, 1],
+                [1, "r", 1, "g", 0, 1],
+                [1, 0, 1, 1, 0, 1],
+                [1, 0, 0, 0, 0, 1],
+                [1, 1, 1, 1, 1, 1],
+            ]
+        elif version == "large":
+            pass
         else:
             NotImplementedError(f"Version {version} is not implemented.")
+
+        env = gym.make(
+            "PointMaze_UMaze-v3",
+            maze_map=example_map,
+            max_episode_steps=max_steps,
+            continuing_task=False,
+            render_mode="rgb_array",
+        )
 
         env = PointMazeWrapper(env, example_map, max_steps, args.seed)
         env = ObsNormWrapper(env)
