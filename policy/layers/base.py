@@ -157,7 +157,7 @@ class Base(nn.Module):
             # Compute where agent is
             # agent_mask = (batch["states"] == agent_idx).astype(np.float32)
             # visitation = batch["states"].mean(0) + 1e-8  # average across batch
-            visitation = self.grid.copy()
+            visitation = np.zeros_like(self.grid, dtype=np.float32) + 1e-8
             for s in states:
                 visitation[int(s[0]), int(s[1]), 0] += 1 / (states.shape[0])
 
