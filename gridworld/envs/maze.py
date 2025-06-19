@@ -40,12 +40,12 @@ class Maze(MultiGridEnv):
 
     def __init__(
         self,
-        grid_type: int = 0,
-        max_steps: int = 100,
+        grid_type: int,
+        max_steps: int,
         num_random_agent: int = 0,
         highlight_visible_cells: bool = False,
         tile_size: int = 10,
-        state_representation: str = "tensor",
+        state_representation: str = "positional",
         render_mode: Literal["human", "rgb_array"] = "rgb_array",
     ):
         self.state_representation = state_representation
@@ -56,12 +56,7 @@ class Maze(MultiGridEnv):
         else:
             self.grid_type = grid_type
 
-        if grid_type == 0:
-            self.max_steps = 500
-        elif grid_type == 1:
-            self.max_steps = 100
-        elif grid_type == 3:
-            self.max_steps = 50
+        self.max_steps = max_steps
 
         self.world = GridWorld
         self.actions_set = GridActions
@@ -79,8 +74,8 @@ class Maze(MultiGridEnv):
         ]
 
         # Define positions for goals and agents
-        self.goal_positions = [(9, 17), (15, 15), (7, 3)]
-        self.agent_positions = [(15, 1), (2, 2), (1, 5)]
+        self.goal_positions = [(16, 1), (15, 15), (7, 3)]
+        self.agent_positions = [(14, 1), (2, 2), (1, 5)]
 
         self.num_random_agent = num_random_agent
         self.random_agent_positions = [
@@ -167,7 +162,7 @@ class Maze(MultiGridEnv):
         super().__init__(
             width=self.width,
             height=self.height,
-            max_steps=max_steps,
+            max_steps=self.max_steps,
             see_through_walls=see_through_walls,
             agents=self.agents,
             actions_set=self.actions_set,
@@ -413,15 +408,17 @@ class Maze(MultiGridEnv):
         self,
     ):
         if self.state_representation == "positional":
-            obs = np.array(
-                [
-                    self.agents[0].pos[0],
-                    self.agents[0].pos[1],
-                    self.goal_positions[self.grid_type][0],
-                    self.goal_positions[self.grid_type][1],
-                ]
-            )
-            obs = obs / np.maximum(self.grid_size[0], self.grid_size[1])
+            obs = {
+                "achieved_goal": np.array(
+                    [self.agents[0].pos[0], self.agents[0].pos[1]]
+                ),
+                "desired_goal": np.array(
+                    [
+                        self.goal_positions[self.grid_type][0],
+                        self.goal_positions[self.grid_type][1],
+                    ]
+                ),
+            }
         elif self.state_representation == "tensor":
             obs = self.grid.encode()
         elif self.state_representation == "vectorized_tensor":
@@ -492,13 +489,8 @@ class Maze(MultiGridEnv):
                     agent_pos = [state_batch[i][0], state_batch[i][1]]
                 x, y = agent_pos[0], agent_pos[1]
 
-                if extractor.name == "EigenOption":
-                    reward = np.dot(eigenvectors[n], features[i, :])
-                elif extractor.name == "ALLO":
-                    eigenvector_idx, eigenvector_sign = eigenvectors[n]
-                    reward = eigenvector_sign * features[i, eigenvector_idx]
-                else:
-                    raise NotImplementedError
+                eigenvector_idx, eigenvector_sign = eigenvectors[n]
+                reward = eigenvector_sign * features[i, eigenvector_idx]
 
                 reward_map[x, y, 0] = reward
 

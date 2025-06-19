@@ -57,6 +57,41 @@ class ObsNormWrapper(gym.ObservationWrapper):
         return getattr(self.env, name)
 
 
+class GridWrapper(gym.Wrapper):
+    def __init__(self, env: gym.Env):
+        super(GridWrapper, self).__init__(env)
+
+    def reset(self, **kwargs):
+        observation_dict, info = self.env.reset(**kwargs)
+        info.update(observation_dict)
+
+        observation = np.concatenate(
+            (
+                observation_dict["achieved_goal"],
+                observation_dict["desired_goal"],
+            )
+        )
+
+        return observation, info
+
+    def step(self, action):
+        # Call the original step method
+        observation_dict, reward, termination, truncation, info = self.env.step(action)
+        info.update(observation_dict)
+
+        observation = np.concatenate(
+            (
+                observation_dict["achieved_goal"],
+                observation_dict["desired_goal"],
+            )
+        )
+        return observation, reward, termination, truncation, info
+
+    def __getattr__(self, name):
+        # Forward any unknown attribute to the inner environment
+        return getattr(self.env, name)
+
+
 class FetchWrapper(gym.Wrapper):
     def __init__(self, env: gym.Env, episode_len: int, seed: int):
         super(FetchWrapper, self).__init__(env)
@@ -108,15 +143,18 @@ class FetchWrapper(gym.Wrapper):
         X, Y, Z = np.meshgrid(x_vals, y_vals, z_vals, indexing="ij")
 
         # Flatten to create a batch of shape (N, 3)
-        features = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=-1)
-        # goal_states = np.repeat(dg.reshape(1, 3), current_states.shape[0], axis=0)
-        # features = np.concatenate([goal_states, current_states], axis=1)
+        states = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=-1)
+
+        with torch.no_grad():
+            intrinsic_rewards, _ = extractor(states)
+            intrinsic_rewards = intrinsic_rewards.cpu().numpy()
 
         images = []
-        for idx, vector in enumerate(eigenvectors):
+        for eigenvector_idx, eigenvector_sign in eigenvectors:
             # Compute reward as dot product
-            rewards = features @ vector  # shape: (N,)
             # rewards = achieved_goals @ vector  # shape: (N,)
+            rewards = eigenvector_sign * intrinsic_rewards[:, eigenvector_idx]
+
             neg_idx = rewards < 0
             pos_idx = rewards >= 0
 
@@ -146,9 +184,9 @@ class FetchWrapper(gym.Wrapper):
             fig = plt.figure(figsize=(8, 6))
             ax = fig.add_subplot(111, projection="3d")
             sc = ax.scatter(
-                features[:, 0],
-                features[:, 1],
-                features[:, 2],
+                states[:, 0],
+                states[:, 1],
+                states[:, 2],
                 c=rewards,
                 cmap=cm.seismic,
                 s=30,
@@ -166,22 +204,27 @@ class FetchWrapper(gym.Wrapper):
                 label="Desired Goal",
             )
 
-            ax.set_title(f"Rewards for Eigenvector {idx}")
+            ax.set_title(
+                f"Rewards for Eigenvector {eigenvector_idx}-{eigenvector_sign}"
+            )
             ax.set_xlabel("X")
             ax.set_ylabel("Y")
             ax.set_zlabel("Z")
             plt.colorbar(sc, ax=ax, label="Normalized Reward")
             ax.legend()
 
+            images.append(fig)
+            plt.close()
+
             # Convert plot to image
-            buf = BytesIO()
-            plt.tight_layout()
-            plt.savefig(buf, format="png")
-            plt.close(fig)
-            buf.seek(0)
-            image = Image.open(buf).convert("RGB")
-            images.append(np.array(image))
-            buf.close()
+            # buf = BytesIO()
+            # plt.tight_layout()
+            # plt.savefig(buf, format="png")
+            # plt.close(fig)
+            # buf.seek(0)
+            # image = Image.open(buf).convert("RGB")
+            # images.append(np.array(image))
+            # buf.close()
 
         return images
 
@@ -199,8 +242,8 @@ class PointMazeWrapper(gym.Wrapper):
         observation = np.concatenate(
             (
                 observation_dict["observation"],
-                observation_dict["desired_goal"],
                 observation_dict["achieved_goal"],
+                observation_dict["desired_goal"],
             )
         )
 
@@ -212,8 +255,8 @@ class PointMazeWrapper(gym.Wrapper):
         observation = np.concatenate(
             (
                 observation_dict["observation"],
-                observation_dict["desired_goal"],
                 observation_dict["achieved_goal"],
+                observation_dict["desired_goal"],
             )
         )
         return observation, reward, termination, truncation, info
@@ -243,7 +286,7 @@ class PointMazeWrapper(gym.Wrapper):
         x_vals = np.linspace(x_low, x_high, num=resolution)
         y_vals = np.linspace(y_low, y_high, num=resolution)
         X_grid, Y_grid = np.meshgrid(x_vals, y_vals, indexing="ij")
-        features = np.stack([X_grid.ravel(), Y_grid.ravel()], axis=-1)
+        states = np.stack([X_grid.ravel(), Y_grid.ravel()], axis=-1)
 
         self.width = resolution
         self.height = resolution
@@ -284,8 +327,11 @@ class PointMazeWrapper(gym.Wrapper):
 
         # Loop over each eigenvector to generate heatmaps
         images = []
-        for idx, vector in enumerate(eigenvectors):
-            rewards = features @ vector
+        with torch.no_grad():
+            intrinsic_rewards, _ = extractor(states)
+        intrinsic_rewards = intrinsic_rewards.cpu().numpy()
+        for eigenvector_idx, eigenvector_sign in eigenvectors:
+            rewards = eigenvector_sign * intrinsic_rewards[:, eigenvector_idx]
 
             neg_idx = rewards < 0
             pos_idx = rewards >= 0

@@ -27,7 +27,6 @@ class IGTPO_Algorithm(nn.Module):
         self.args = args
 
         self.intrinsic_reward_fn = IntrinsicRewardFunctions(
-            env=env,
             logger=logger,
             writer=writer,
             args=args,
@@ -100,3 +99,6 @@ class IGTPO_Algorithm(nn.Module):
             gae=self.args.gae,
             device=self.args.device,
         )
+
+        if hasattr(self.env, "get_grid"):
+            self.policy.grid = self.env.get_grid()

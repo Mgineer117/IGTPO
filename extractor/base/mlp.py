@@ -51,7 +51,7 @@ class NeuralNet(nn.Module):
             raise ValueError(
                 f"The state representation is positional. Shound be 2D, given {len(state.shape)}D state dimension."
             )
-        feature = self.encoder(state[:, :2])
+        feature = self.encoder(state)
 
         return feature, {}
 

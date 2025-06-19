@@ -40,8 +40,8 @@ class NineRooms(MultiGridEnv):
 
     def __init__(
         self,
-        grid_type: int = 0,
-        max_steps: int = 100,
+        grid_type: int,
+        max_steps: int,
         num_random_agent: int = 0,
         highlight_visible_cells: bool = False,
         tile_size: int = 10,
@@ -50,7 +50,9 @@ class NineRooms(MultiGridEnv):
     ):
         self.state_representation = state_representation
         self.grid_type = grid_type
+
         self.max_steps = max_steps
+
         self.world = GridWorld
         self.actions_set = GridActions
 
@@ -170,7 +172,7 @@ class NineRooms(MultiGridEnv):
         super().__init__(
             width=self.width,
             height=self.height,
-            max_steps=max_steps,
+            max_steps=self.max_steps,
             see_through_walls=see_through_walls,
             agents=self.agents,
             actions_set=self.actions_set,
@@ -416,15 +418,17 @@ class NineRooms(MultiGridEnv):
         self,
     ):
         if self.state_representation == "positional":
-            obs = np.array(
-                [
-                    self.agents[0].pos[0],
-                    self.agents[0].pos[1],
-                    self.goal_positions[self.grid_type][0],
-                    self.goal_positions[self.grid_type][1],
-                ]
-            )
-            obs = obs / np.maximum(self.grid_size[0], self.grid_size[1])
+            obs = {
+                "achieved_goal": np.array(
+                    [self.agents[0].pos[0], self.agents[0].pos[1]]
+                ),
+                "desired_goal": np.array(
+                    [
+                        self.goal_positions[self.grid_type][0],
+                        self.goal_positions[self.grid_type][1],
+                    ]
+                ),
+            }
         elif self.state_representation == "tensor":
             obs = self.grid.encode()
         elif self.state_representation == "vectorized_tensor":
@@ -495,13 +499,8 @@ class NineRooms(MultiGridEnv):
                     agent_pos = [state_batch[i][0], state_batch[i][1]]
                 x, y = agent_pos[0], agent_pos[1]
 
-                if extractor.name == "EigenOption":
-                    reward = np.dot(eigenvectors[n], features[i, :])
-                elif extractor.name == "ALLO":
-                    eigenvector_idx, eigenvector_sign = eigenvectors[n]
-                    reward = eigenvector_sign * features[i, eigenvector_idx]
-                else:
-                    raise NotImplementedError
+                eigenvector_idx, eigenvector_sign = eigenvectors[n]
+                reward = eigenvector_sign * features[i, eigenvector_idx]
 
                 reward_map[x, y, 0] = reward
 

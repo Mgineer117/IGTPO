@@ -137,37 +137,41 @@ class Base(nn.Module):
         flat_grad = torch.cat([g.view(-1) for g in grads])
         return flat_grad
 
-    def record_state_visitations(self, batch: dict):
+    def record_state_visitations(self, states: np.ndarray | torch.Tensor):
         alpha = 0.01
 
         wall_idx = 2
         agent_idx = 10
         goal_idx = 8
 
-        state_sample = batch["states"][0]
+        if isinstance(states, torch.Tensor):
+            states = states.cpu().numpy()
 
-        if self.actor.is_discrete and len(state_sample.shape) == 3:
+        if self.actor.is_discrete:
             if self.state_visitation is None:
-                self.state_visitation = np.zeros_like(state_sample, dtype=np.float32)
+                self.state_visitation = np.zeros_like(self.grid, dtype=np.float32)
 
             # Mask out wall and goal
-            mask = (state_sample == wall_idx) | (state_sample == goal_idx)
+            mask = (self.grid == wall_idx) | (self.grid == goal_idx)
 
             # Compute where agent is
-            agent_mask = (batch["states"] == agent_idx).astype(np.float32)
-            visitation = agent_mask.mean(0) + 1e-8  # average across batch
+            # agent_mask = (batch["states"] == agent_idx).astype(np.float32)
+            # visitation = batch["states"].mean(0) + 1e-8  # average across batch
+            visitation = self.grid.copy()
+            for s in states:
+                visitation[int(s[0]), int(s[1]), 0] += 1 / (states.shape[0])
+
             visitation[mask] = 0.0  # remove static or irrelevant regions
 
             # EMA update
             if self.state_visitation is None:
-                self.state_visitation = visitation.copy()
+                self.state_visitation = visitation
             else:
                 self.state_visitation = (
                     alpha * visitation + (1 - alpha) * self.state_visitation
                 )
         else:
             # ----- CONTINUOUS CASE -----
-            states = batch["states"]
             if len(states.shape) == 3:
                 states = states.reshape(states.shape[0], -1)
 

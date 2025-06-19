@@ -142,8 +142,6 @@ class DRNDPPO_Learner(Base):
         self.train()
         t0 = time.time()
 
-        self.record_state_visitations(batch)
-
         # Ingredients: Convert batch data to tensors
         states = self.preprocess_state(batch["states"])
         next_states = self.preprocess_state(batch["next_states"])
@@ -153,6 +151,8 @@ class DRNDPPO_Learner(Base):
 
         ext_rewards = self.preprocess_state(batch["rewards"])
         int_rewards = self.intrinsic_reward(next_states)
+
+        self.record_state_visitations(states)
 
         # Compute advantages and returns
         with torch.no_grad():

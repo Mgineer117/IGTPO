@@ -68,3 +68,6 @@ class TRPO_Algorithm(nn.Module):
             gae=self.args.gae,
             device=self.args.device,
         )
+
+        if hasattr(self.env, "get_grid"):
+            self.policy.grid = self.env.get_grid()

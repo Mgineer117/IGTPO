@@ -11,7 +11,16 @@ from torch.utils.tensorboard import SummaryWriter
 
 import gymnasium_robotics
 from log.wandb_logger import WandbLogger
-from utils.wrapper import FetchWrapper, ObsNormWrapper, PointMazeWrapper
+from utils.wrapper import FetchWrapper, GridWrapper, ObsNormWrapper, PointMazeWrapper
+
+EPI_LENGTH = {
+    "maze-v0": 200,
+    "maze-v1": 100,
+    "maze-v2": 50,
+    "ninerooms-v0": 100,
+    "pointmaze-medium": 200,
+    "fetch-reach": 50,
+}
 
 
 def temp_seed(seed, pid):
@@ -29,13 +38,19 @@ def temp_seed(seed, pid):
     random.seed(seed + pid + rand_int)
 
 
-def call_env(args, state_representation: str = "tensor"):
+def call_env(args, episode_len: int | None = None):
     """
     Call the environment based on the given name.
     """
 
-    env_name, version = args.env_name.split("-")
+    if episode_len is not None:
+        max_steps = episode_len
+    else:
+        max_steps = EPI_LENGTH[args.env_name]
 
+    args.episode_len = max_steps
+
+    env_name, version = args.env_name.split("-")
     if env_name in ("fourrooms", "ninerooms", "maze"):
         # For grid environment, we do not use an observation normalization
         # since the most of the state is static (walls) that leads to 0 std.
@@ -45,101 +60,93 @@ def call_env(args, state_representation: str = "tensor"):
 
             env = FourRooms(
                 grid_type=version,
-                state_representation=state_representation,
+                max_steps=max_steps,
                 num_random_agent=args.num_random_agents,
             )
-            # args.is_discrete = True
+
         elif env_name == "maze":
             from gridworld.envs.maze import Maze
 
             env = Maze(
                 grid_type=version,
-                state_representation=state_representation,
+                max_steps=max_steps,
                 num_random_agent=args.num_random_agents,
             )
-            # args.is_discrete = True
         elif env_name == "ninerooms":
             from gridworld.envs.ninerooms import NineRooms
 
             env = NineRooms(
                 grid_type=version,
-                state_representation=state_representation,
+                max_steps=max_steps,
                 num_random_agent=args.num_random_agents,
             )
         else:
             raise ValueError(f"Environment {env_name} is not supported.")
 
+        env = GridWrapper(env)
+
         args.state_dim = env.observation_space.shape
+        args.positional_indices = [0, 1]
         args.action_dim = env.action_space.n
-        args.episode_len = env.max_steps
         args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
     elif env_name == "fetch":
-        episode_len = 50
+
         gym.register_envs(gymnasium_robotics)
 
         if version == "reach":
             env = gym.make(
-                "FetchReach-v4", max_episode_steps=episode_len, render_mode="rgb_array"
+                "FetchReach-v4",
+                max_episode_steps=max_steps,
+                render_mode="rgb_array",
             )
         elif version == "reachdense":
             env = gym.make(
                 "FetchReachDense-v4",
-                max_episode_steps=episode_len,
+                max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
         elif version == "push":
             env = gym.make(
                 "FetchPush-v4",
-                max_episode_steps=episode_len,
+                max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
         elif version == "pushdense":
             env = gym.make(
                 "FetchPushDense-v4",
-                max_episode_steps=episode_len,
+                max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
         elif version == "pickandplace":
             env = gym.make(
                 "FetchPickAndPlace-v4",
-                max_episode_steps=episode_len,
+                max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
         elif version == "pickandplacedense":
             env = gym.make(
                 "FetchPickAndPlaceDense-v4",
-                max_episode_steps=episode_len,
+                max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
         else:
             NotImplementedError(f"Version {version} is not implemented.")
 
-        env = FetchWrapper(env, episode_len, args.seed)
+        env = FetchWrapper(env, max_steps, args.seed)
         env = ObsNormWrapper(env)
 
+        args.positional_indices = [-6, -5, -4]
         args.state_dim = (
             env.observation_space["observation"].shape[0]
             + env.observation_space["achieved_goal"].shape[0]
             + env.observation_space["desired_goal"].shape[0],
         )
         args.action_dim = env.action_space.shape[0]
-        args.episode_len = episode_len
         args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
 
     elif env_name == "pointmaze":
         gym.register_envs(gymnasium_robotics)
-        # episode_len = 300
-        # example_map = [
-        #     [1, 1, 1, 1, 1, 1, 1, 1],
-        #     [1, "r", 0, 1, 1, 0, 0, 1],
-        #     [1, 0, 0, 1, 0, 0, 0, 1],
-        #     [1, 1, 0, 0, 0, 1, 1, 1],
-        #     [1, 0, 0, 1, 0, 0, 0, 1],
-        #     [1, 0, 1, 0, 0, 1, 0, 1],
-        #     [1, 0, 0, 0, 1, "g", 0, 1],
-        #     [1, 1, 1, 1, 1, 1, 1, 1],
-        # ]
-        episode_len = 300
+
         example_map = [
             [1, 1, 1, 1, 1, 1],
             [1, "r", 1, "g", 0, 1],
@@ -152,7 +159,7 @@ def call_env(args, state_representation: str = "tensor"):
             env = gym.make(
                 "PointMaze_UMaze-v3",
                 maze_map=example_map,
-                max_episode_steps=episode_len,
+                max_episode_steps=max_steps,
                 continuing_task=False,
                 render_mode="rgb_array",
             )
@@ -160,23 +167,23 @@ def call_env(args, state_representation: str = "tensor"):
             env = gym.make(
                 "PointMaze_UMazeDense-v3",
                 maze_map=example_map,
-                max_episode_steps=episode_len,
+                max_episode_steps=max_steps,
                 continuing_task=False,
                 render_mode="rgb_array",
             )
         else:
             NotImplementedError(f"Version {version} is not implemented.")
 
-        env = PointMazeWrapper(env, example_map, episode_len, args.seed)
+        env = PointMazeWrapper(env, example_map, max_steps, args.seed)
         env = ObsNormWrapper(env)
 
+        args.positional_indices = [-4, -3]
         args.state_dim = (
             env.observation_space["observation"].shape[0]
             + env.observation_space["achieved_goal"].shape[0]
             + env.observation_space["desired_goal"].shape[0],
         )
         args.action_dim = env.action_space.shape[0]
-        args.episode_len = episode_len
         args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
 
     return env

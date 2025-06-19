@@ -97,141 +97,34 @@ def estimate_advantages(
 
 
 def get_extractor(args):
-    from extractor.base.cnn import CNN
-    from extractor.base.vae import VAE
-    from extractor.extractor import ALLO, DummyExtractor, Extractor
-    from utils.cnn_architecture import get_cnn_architecture
+    from extractor.base.mlp import NeuralNet
+    from extractor.extractor import ALLO
 
-    env_name, version = args.env_name.split("-")
+    # === CREATE FEATURE EXTRACTOR === #
+    feature_network = NeuralNet(
+        state_dim=len(args.positional_indices),  # discrete position is always 2d
+        feature_dim=(args.num_options // 2 + 1),
+        encoder_fc_dim=[512, 512, 512],
+        activation=nn.Tanh(),
+    )
 
-    if env_name in ("fourrooms", "ninerooms", "maze"):
-        # === DECIDE EXTRACTOR === #
-        if args.intrinsic_reward_mode in ("allo", "allo-drnd"):
-            feature_dim = args.num_options // 2
-            extractor_class = ALLO
-        elif args.intrinsic_reward_mode in ("eigenpurpose", "eig-drnd"):
-            feature_dim = args.feature_dim
-            extractor_class = Extractor
-
-        # === CREATE FEATURE EXTRACTOR === #
-        if args.extractor_type == "VAE":
-            feature_network = VAE(
-                state_dim=args.state_dim,
-                action_dim=args.action_dim,
-                feature_dim=feature_dim,
-                encoder_fc_dim=[512, 512, 256, 256],
-                decoder_fc_dim=[256, 256, 512, 512],
-                activation=nn.Tanh(),
-                device=args.device,
-            )
-        elif args.extractor_type == "CNN":
-            encoder_architecture, decoder_architecture = get_cnn_architecture(args)
-            feature_network = CNN(
-                state_dim=args.state_dim,
-                action_dim=args.action_dim,
-                feature_dim=feature_dim,
-                encoder_architecture=encoder_architecture,
-                decoder_architecture=decoder_architecture,
-                activation=nn.Tanh(),
-                device=args.device,
-            )
-        else:
-            raise NotImplementedError(f"{args.extractor_type} is not implemented")
-
-        # === DEFINE LEARNING METHOD FOR EXTRACTOR === #
-        extractor = extractor_class(
-            network=feature_network,
-            extractor_lr=args.extractor_lr,
-            epochs=args.extractor_epochs,
-            batch_size=1024,
-            device=args.device,
-        )
-    elif env_name == "pointmaze":
-        # continuous space has pretty small dimension
-        # indices is for feature selection of state
-        indices = [-2, -1]
-
-        if args.intrinsic_reward_mode in ("allo", "allo-drnd"):
-            from extractor.base.mlp import NeuralNet
-
-            feature_network = NeuralNet(
-                state_dim=len(indices), feature_dim=(args.num_options // 2)
-            )
-            extractor = ALLO(
-                network=feature_network,
-                extractor_lr=args.extractor_lr,
-                epochs=args.extractor_epochs,
-                batch_size=1024,
-                device=args.device,
-            )
-        else:
-            extractor = DummyExtractor(indices=indices)
-
-    elif env_name == "fetch":
-        # continuous space has pretty small dimension
-        # if no indices are used, whole state is a feature
-        indices = [-3, -2, -1]
-
-        if args.intrinsic_reward_mode in ("allo", "allo-drnd"):
-            from extractor.base.mlp import NeuralNet
-
-            feature_network = NeuralNet(
-                state_dim=len(indices), feature_dim=(args.num_options // 2)
-            )
-            extractor = ALLO(
-                network=feature_network,
-                extractor_lr=args.extractor_lr,
-                epochs=args.extractor_epochs,
-                batch_size=1024,
-                device=args.device,
-            )
-        else:
-            extractor = DummyExtractor(indices=indices)
+    # === DEFINE LEARNING METHOD FOR EXTRACTOR === #
+    extractor = ALLO(
+        network=feature_network,
+        positional_indices=args.positional_indices,
+        extractor_lr=args.extractor_lr,
+        epochs=args.extractor_epochs,
+        batch_size=1024,
+        device=args.device,
+    )
 
     return extractor
 
 
 def get_vector(env, extractor, args):
-    from policy.uniform_random import UniformRandom
-
-    sampler = OnlineSampler(
-        state_dim=args.state_dim,
-        action_dim=args.action_dim,
-        episode_len=args.episode_len,
-        batch_size=500 * args.episode_len,
-        verbose=False,
-    )
-
-    uniform_random_policy = UniformRandom(
-        state_dim=args.state_dim,
-        action_dim=args.action_dim,
-        is_discrete=args.is_discrete,
-        device=args.device,
-    )
-
-    if args.intrinsic_reward_mode in ("eigenpurpose", "eig-drnd"):
-        batch, _ = sampler.collect_samples(env, uniform_random_policy, args.seed)
-        states = torch.from_numpy(batch["states"]).to(args.device)
-        with torch.no_grad():
-            features, _ = extractor(states)
-
-        # Covariance-based PCA
-        cov = torch.cov(features.T)
-        eigval, eigvec = torch.linalg.eigh(cov)
-        sorted_indices = torch.argsort(eigval, descending=True)
-        eigval = eigval[sorted_indices]
-        eigvec = eigvec[:, sorted_indices]
-        eigvec_row = eigvec.T.real
-        eig_vec_row = eigvec_row[: int(args.num_options / 2)]
-        eigenvectors = torch.cat([eig_vec_row, -eig_vec_row], dim=0)
-        eigenvectors = eigenvectors.cpu().numpy()
-
-    elif args.intrinsic_reward_mode in ("allo", "allo-drnd"):
-        # ALLO does not have explicit eigenvectors.
-        # Instead, we make list that contains the eigenvector index and sign
-        eigenvectors = [(n // 2, 2 * (n % 2) - 1) for n in range(args.num_options)]
-    else:
-        raise NotImplementedError(f"Mode {args.intrinsic_reward_mode} not supported.")
+    # ALLO does not have explicit eigenvectors.
+    # Instead, we make list that contains the eigenvector index and sign
+    eigenvectors = [(n // 2 + 1, 2 * (n % 2) - 1) for n in range(args.num_options)]
 
     heatmaps = env.get_rewards_heatmap(extractor, eigenvectors)
 

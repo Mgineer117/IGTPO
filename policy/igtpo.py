@@ -205,7 +205,7 @@ class IGTPO_Learner(Base):
                         timesteps = batch["states"].shape[0]
                 else:  # prefix == "outer"
                     batch, sample_time = outer_sampler.collect_samples(env, actor, seed)
-                    self.record_state_visitations(batch)
+                    self.record_state_visitations(batch["states"])
                     timesteps = batch["states"].shape[0]
 
                 # save reward probability

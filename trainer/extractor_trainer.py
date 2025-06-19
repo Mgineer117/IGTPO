@@ -50,12 +50,9 @@ class ExtractorTrainer:
         self.loss_list = deque(maxlen=5)
 
         # Collect initial data
-        random_init_pos = True if self.extractor.name == "EigenOption" else False
+        # random_init_pos = True if self.extractor.name == "EigenOption" else False
         batch, _ = self.sampler.collect_samples(
-            env=self.env,
-            policy=self.policy,
-            seed=self.seed,
-            random_init_pos=random_init_pos,
+            env=self.env, policy=self.policy, seed=self.seed, random_init_pos=True
         )
 
         # Train loop
@@ -68,9 +65,7 @@ class ExtractorTrainer:
             while pbar.n < self.epochs:
                 step = pbar.n + 1  # + 1 to avoid zero division
 
-                loss_dict, timesteps, comparing_img, update_time = self.extractor.learn(
-                    batch
-                )
+                loss_dict, _, eigenvalue_plot, update_time = self.extractor.learn(batch)
 
                 # Calculate expected remaining time
                 pbar.update(1)
@@ -90,11 +85,12 @@ class ExtractorTrainer:
 
                 #### EVALUATIONS ####
                 if step > eval_idx * int(self.epochs / 10):
+
                     self.write_image(
-                        image=comparing_img,
+                        image=eigenvalue_plot,
                         step=step,
                         logdir="Image",
-                        name="Reconstruction",
+                        name="Eigenvalues",
                     )
 
                     eval_idx += 1

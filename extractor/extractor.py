@@ -1,6 +1,7 @@
 import os
 import time
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -38,19 +39,20 @@ class DummyExtractor(Base):
         pass
 
 
-class Extractor(Base):
+class ALLO(Base):
     def __init__(
         self,
         network: nn.Module,
+        positional_indices: list,
         extractor_lr: float,
         epochs: int,
         batch_size: int,
         device: str = "cpu",
     ):
-        super(Extractor, self).__init__()
-
-        ### constants
-        self.name = "EigenOption"
+        super(ALLO, self).__init__()
+        self.name = "ALLO"
+        self.d = network.feature_dim
+        self.positional_indices = positional_indices
         self.epochs = epochs
 
         ### trainable parameters
@@ -59,10 +61,37 @@ class Extractor(Base):
             [{"params": self.network.parameters(), "lr": extractor_lr}],
         )
         self.lr_scheduler = LambdaLR(self.optimizer, lr_lambda=self.lr_lambda)
+
+        # === PARAMETERS === #
         self.batch_size = batch_size
+        self.lr_duals = 1e-4
+        self.lr_dual_velocities = 0.1
+        self.lr_barrier_coeff = 1e-2
+        self.use_barrier_for_duals = 0
+        self.min_duals = 0.0
+        self.max_duals = 100.0
+        self.barrier_increase_rate = 0.1
+        self.min_barrier_coefs = 0
+        self.max_barrier_coefs = 10000
+
+        self.permutation_array = np.arange(self.d)
+
+        # Assumes self.barrier_initial_val is already defined as a float or torch scalar
+        self.dual_variables = torch.zeros(
+            (self.d, self.d), device=device, requires_grad=False
+        )
+        self.barrier_coeffs = torch.tril(
+            2 * torch.ones((self.d, self.d), device=device, requires_grad=False),
+            diagonal=0,
+        )
+        self.dual_velocities = torch.zeros(
+            (self.d, self.d), device=device, requires_grad=False
+        )
+        self.errors = torch.zeros((self.d, self.d), device=device, requires_grad=False)
+        self.quadratic_errors = torch.zeros((1, 1), device=device, requires_grad=False)
 
         #
-        self.dummy = torch.tensor(1e-5)
+        self.nupdates = 0
         self.device = device
         self.to(self.device)
 
@@ -81,150 +110,6 @@ class Extractor(Base):
 
         features, infos = self.network(states, deterministic=deterministic)
         return features, infos
-
-    def decode(self, features: torch.Tensor, actions: torch.Tensor):
-        # match the data types
-        if isinstance(features, np.ndarray):
-            features = torch.from_numpy(features).to(self.device)
-        if isinstance(actions, np.ndarray):
-            actions = torch.from_numpy(actions).to(self.device)
-        # match the dimensions
-        if len(features.shape) == 1:
-            features = features.unsqueeze(0)
-        if len(actions.shape) == 1:
-            actions = actions.unsqueeze(0)
-
-        reconstructed_state = self.network.decode(features, actions)
-        return reconstructed_state
-
-    def learn(self, batch: dict):
-        self.train()
-        t0 = time.time()
-
-        ### Pull data from the batch
-        num_samples = batch["states"].shape[0]
-        indices = torch.randperm(num_samples)[: self.batch_size]
-
-        states = torch.from_numpy(batch["states"][indices]).to(self.device)
-        actions = torch.from_numpy(batch["actions"][indices]).to(self.device)
-        next_states = torch.from_numpy(batch["next_states"][indices]).to(self.device)
-
-        timesteps = states.shape[0]
-
-        ### Update
-        features, infos = self(states)
-
-        # if kl is too strong, it decoder is not converging
-        encoder_loss = infos["loss"]
-
-        reconstructed_states = self.decode(features, actions)
-        decoder_loss = self.mse_loss(reconstructed_states, next_states)
-        comparing_img = self.get_comparison_img(next_states[0], reconstructed_states[0])
-
-        weight_loss = 0
-        for param in self.network.parameters():
-            if param.requires_grad:  # Only include parameters that require gradients
-                weight_loss += torch.norm(param, p=2)  # L
-
-        loss = encoder_loss + decoder_loss + 1e-6 * weight_loss
-
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
-        grad_dict, norm_dict = self.get_grad_weight_norm()
-        self.optimizer.step()
-
-        self.lr_scheduler.step()
-
-        ### Logging
-
-        loss_dict = {
-            f"{self.name}/loss": loss.item(),
-            f"{self.name}/encoder_loss": encoder_loss.item(),
-            f"{self.name}/decoder_loss": decoder_loss.item(),
-            f"{self.name}/weight_loss": weight_loss.item(),
-            f"{self.name}/extractor_lr": self.optimizer.param_groups[0]["lr"],
-        }
-        loss_dict.update(grad_dict)
-        loss_dict.update(norm_dict)
-
-        del states, actions, next_states
-        torch.cuda.empty_cache()
-
-        t1 = time.time()
-        self.eval()
-        return loss_dict, timesteps, comparing_img, t1 - t0
-
-    def get_comparison_img(self, x: torch.Tensor, y: torch.Tensor):
-        if len(x.shape) == 1 and len(y.shape):
-            x = x.unsqueeze(0)
-            y = y.unsqueeze(0)
-        with torch.no_grad():
-            comparing_img = torch.concatenate((x, y), dim=1)
-            comparing_img = (comparing_img - comparing_img.min()) / (
-                comparing_img.max() - comparing_img.min() + 1e-6
-            )
-        return comparing_img
-
-    def get_grad_weight_norm(self):
-        grad_dict = self.compute_gradient_norm(
-            [self.network],
-            ["extractor"],
-            dir=f"{self.name}",
-            device=self.device,
-        )
-        norm_dict = self.compute_weight_norm(
-            [self.network],
-            ["extractor"],
-            dir=f"{self.name}",
-            device=self.device,
-        )
-        return grad_dict, norm_dict
-
-
-class ALLO(Extractor):
-    def __init__(self, orth_lambda=1.0, graph_lambda=1.0, **kwargs):
-        super(ALLO, self).__init__(**kwargs)
-        self.name = "ALLO"
-        self.d = kwargs.get("network").feature_dim
-        self.orth_lambda = orth_lambda
-        self.graph_lambda = graph_lambda
-
-        self.lr_duals = 1e-4
-        self.lr_dual_velocities = 0.1
-        self.lr_barrier_coeff = 1e-2
-        self.use_barrier_for_duals = 0
-        self.min_duals = 0.0
-        self.max_duals = 100.0
-        self.barrier_increase_rate = 0.1
-        self.min_barrier_coefs = 0
-        self.max_barrier_coefs = 10000
-
-        self.permutation_array = np.arange(self.d)
-
-        # Assumes self.barrier_initial_val is already defined as a float or torch scalar
-        self.dual_variables = torch.zeros(
-            (self.d, self.d), device=self.device, requires_grad=False
-        )
-
-        self.barrier_coeffs = torch.tril(
-            2 * torch.ones((self.d, self.d), device=self.device, requires_grad=False),
-            diagonal=0,
-        )
-
-        self.dual_velocities = torch.zeros(
-            (self.d, self.d), device=self.device, requires_grad=False
-        )
-
-        self.errors = torch.zeros(
-            (self.d, self.d), device=self.device, requires_grad=False
-        )
-
-        self.quadratic_errors = torch.zeros(
-            (1, 1), device=self.device, requires_grad=False
-        )
-
-        self.nupdates = 0
 
     def learn(self, batch: dict):
         self.train()
@@ -290,10 +175,7 @@ class ALLO(Extractor):
         ).sum()
 
         # Total loss
-        loss = self.graph_lambda * graph_loss + self.orth_lambda * (
-            dual_loss + barrier_loss
-        )
-        # print(barrier_loss)
+        loss = graph_loss + dual_loss + barrier_loss
 
         # Optimize
         self.optimizer.zero_grad()
@@ -347,6 +229,12 @@ class ALLO(Extractor):
                 )
             )
 
+        # === make eigenvalue plot === #
+        fig, ax = plt.subplots()
+        eigenvalues = self.dual_variables.diag().cpu().numpy()
+        ax.stem(eigenvalues)
+        plt.close()
+
         # Cleanup
         del phi1, phi2, uncorrelated_phi1, uncorrelated_phi2
         torch.cuda.empty_cache()
@@ -367,7 +255,7 @@ class ALLO(Extractor):
 
         self.nupdates += 1
 
-        return loss_dict, timesteps, None, t1 - t0
+        return loss_dict, timesteps, fig, t1 - t0
 
     def discounted_sampling(
         self, ranges: torch.Tensor, discount: float
@@ -430,7 +318,7 @@ class ALLO(Extractor):
         s1 = torch.stack(s1_list).to(device)
         s2 = torch.stack(s2_list).to(device)
 
-        return s1, s2
+        return s1[:, self.positional_indices], s2[:, self.positional_indices]
 
     def sample_steps_from_batch(
         self, batch: dict, batch_size: int, device: torch.device
@@ -467,4 +355,19 @@ class ALLO(Extractor):
             np.array(sampled_states), dtype=torch.float32, device=device
         )
 
-        return sampled_states_tensor
+        return sampled_states_tensor[:, self.positional_indices]
+
+    def get_grad_weight_norm(self):
+        grad_dict = self.compute_gradient_norm(
+            [self.network],
+            ["extractor"],
+            dir=f"{self.name}",
+            device=self.device,
+        )
+        norm_dict = self.compute_weight_norm(
+            [self.network],
+            ["extractor"],
+            dir=f"{self.name}",
+            device=self.device,
+        )
+        return grad_dict, norm_dict

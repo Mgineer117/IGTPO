@@ -94,3 +94,6 @@ class DRND_PPO_Algorithm(nn.Module):
             K=self.args.K_epochs,
             device=self.args.device,
         )
+
+        if hasattr(self.env, "get_grid"):
+            self.policy.grid = self.env.get_grid()

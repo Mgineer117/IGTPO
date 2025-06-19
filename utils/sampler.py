@@ -147,7 +147,7 @@ class OnlineSampler(Base):
         collected = 0
         while collected < expected:
             try:
-                pid, data = queue.get(timeout=10)
+                pid, data = queue.get(timeout=60)
                 if worker_memories[pid] is None:
                     worker_memories[pid] = data
                     collected += 1

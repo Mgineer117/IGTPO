@@ -1,7 +1,5 @@
 {
-    "extractor_epochs": 10000,
     "timesteps": 2e7,
-    "extractor_type": "CNN",
     "feature_dim": 32,
     "eps_clip": 0.2,
     "K_epochs": 5,
@@ -11,5 +9,5 @@
     "num_minibatch": 4,
     "minibatch_size": 1024,
     "batch_size": 4096,
-    "intrinsic_reward_mode": "all"
+    "intrinsic_reward_mode": "all-drnd"
 }

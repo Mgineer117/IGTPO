@@ -5,17 +5,19 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from utils.functions import call_env
 from utils.sampler import OnlineSampler
 
 
 class IntrinsicRewardFunctions(nn.Module):
-    def __init__(self, env, logger, writer, args):
+    def __init__(self, logger, writer, args):
         super(IntrinsicRewardFunctions, self).__init__()
 
-        from utils.functions import call_env
-
         # === Parameter saving === #
-        self.env = env
+        self.episode_len_for_sampling = 200_000
+        self.num_trials = 10
+
+        self.extractor_env = call_env(deepcopy(args), self.episode_len_for_sampling)
         self.logger = logger
         self.writer = writer
         self.args = args
@@ -24,17 +26,7 @@ class IntrinsicRewardFunctions(nn.Module):
         self.loss_dict = {}
 
         # === MAKE ENV === #
-        self.env_name, version = args.env_name.split("-")
-
-        if self.args.intrinsic_reward_mode == "eigenpurpose":
-            self.num_rewards = self.args.num_options
-            self.extractor_mode = "eigenpurpose"
-            self.define_extractor()
-            self.define_eigenvectors()
-            self.define_intrinsic_reward_normalizer()
-
-            self.sources = ["eigenpurpose" for _ in range(self.num_rewards)]
-        elif self.args.intrinsic_reward_mode == "allo":
+        if self.args.intrinsic_reward_mode == "allo":
             self.num_rewards = self.args.num_options
             self.extractor_mode = "allo"
             self.define_extractor()
@@ -48,18 +40,6 @@ class IntrinsicRewardFunctions(nn.Module):
             self.define_drnd_policy()
 
             self.sources = ["drnd"]
-        elif self.args.intrinsic_reward_mode == "eig-drnd":
-            # eigenpurpose + drnd
-            self.num_rewards = self.args.num_options + 1
-            self.extractor_mode = "eigenpurpose"
-
-            self.define_extractor()
-            self.define_eigenvectors()
-            self.define_intrinsic_reward_normalizer()
-            self.define_drnd_policy()
-
-            self.sources = ["eigenpurpose" for _ in range(self.args.num_options)]
-            self.sources.append("drnd")
         elif self.args.intrinsic_reward_mode == "allo-drnd":
             # allo + drnd
             self.num_rewards = self.args.num_options + 1
@@ -81,22 +61,9 @@ class IntrinsicRewardFunctions(nn.Module):
         if self.num_rewards > 1:
             source = self.sources[i]
 
-            # === REMOVE EIGENVECTORS === #
-            if self.extractor_mode == "allo":
+            # === REMOVE EIGENVECTORS & NORMALIZER === #
+            if source == "allo":
                 del self.eigenvectors[i]
-            elif self.extractor_mode == "allo":
-                self.eigenvectors = torch.cat(
-                    (
-                        self.eigenvectors[:i],
-                        self.eigenvectors[i + 1 :],
-                    ),
-                    dim=0,
-                )
-            else:
-                raise ValueError(f"Unknown extractor mode.")
-
-            # === REMOVE NORMALIZER === #
-            if source in ("eigenpurpose", "allo"):
                 del self.reward_rms[i]
                 del self.sources[i]
             elif source == "drnd":
@@ -109,25 +76,9 @@ class IntrinsicRewardFunctions(nn.Module):
             )
 
     def forward(self, states: torch.Tensor, next_states: torch.Tensor, i: int):
-        if self.sources[i] == "eigenpurpose":
-            # get features
-            with torch.no_grad():
-                feature, _ = self.extractor(states)
-                next_feature, _ = self.extractor(next_states)
-                difference = next_feature - feature
-
-            # Calculate the intrinsic reward using the eigenvector
-            intrinsic_rewards = torch.matmul(
-                difference, self.eigenvectors[i].unsqueeze(-1)
-            )
-            # .to(self.args.device)
-        elif self.sources[i] == "allo":
-            # if self.env_name in ("fourrooms", "ninerooms", "maze"):
-            # states (B, width, height, channel)
-            # to states (B, 2) where 2 is agent position
-            # agent_idx = 10
-            # states = self.extract_agent_positions(states, agent_idx=10)
-            # next_states = self.extract_agent_positions(next_states, agent_idx=10)
+        if self.sources[i] == "allo":
+            states = states[:, self.args.positional_indices]
+            next_states = next_states[:, self.args.positional_indices]
 
             with torch.no_grad():
                 feature, _ = self.extractor(states)
@@ -140,6 +91,9 @@ class IntrinsicRewardFunctions(nn.Module):
                 ].unsqueeze(-1)
 
         elif self.sources[i] == "drnd":
+            # states = states[:, self.args.positional_indices]
+            # next_states = next_states[:, self.args.positional_indices]
+
             with torch.no_grad():
                 intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
 
@@ -183,40 +137,6 @@ class IntrinsicRewardFunctions(nn.Module):
         else:
             pass
 
-    def extract_agent_positions(
-        self, states: torch.Tensor, agent_idx: int
-    ) -> torch.Tensor:
-        """
-        Vectorized extraction of agent positions from (B, W, H, C) states.
-        Assumes exactly one agent per sample.
-
-        Args:
-            states: Tensor of shape (B, W * H * C)
-            agent_idx: Integer value representing the agent
-
-        Returns:
-            Tensor of shape (B, 2) with (x, y) positions
-        """
-        # (B, W * H * C) → (B, W, H, C): True where any channel equals agent_idx
-        states = states.reshape(
-            states.shape[0], self.extractor_env.width, self.extractor_env.height, -1
-        )
-        agent_mask = (states == agent_idx).any(dim=-1)  # shape: (B, W, H)
-
-        # Flatten spatial dims
-        B, W, H = agent_mask.shape
-        flat_mask = agent_mask.view(B, -1)  # (B, W*H)
-
-        # Get index of agent in flattened grid
-        flat_indices = flat_mask.float().argmax(dim=-1)  # (B,)
-
-        # Convert flat indices to 2D coordinates (x, y)
-        y = flat_indices % H
-        x = flat_indices // H
-
-        states = torch.stack([x, y], dim=-1).float()  # (B, 2)
-        return states
-
     def define_extractor(self):
         from policy.uniform_random import UniformRandom
         from trainer.extractor_trainer import ExtractorTrainer
@@ -238,12 +158,12 @@ class IntrinsicRewardFunctions(nn.Module):
             sampler = OnlineSampler(
                 state_dim=self.args.state_dim,
                 action_dim=self.args.action_dim,
-                episode_len=self.args.episode_len,
-                batch_size=500 * self.args.episode_len,
+                episode_len=self.episode_len_for_sampling,
+                batch_size=self.num_trials * self.episode_len_for_sampling,
                 verbose=False,
             )
             trainer = ExtractorTrainer(
-                env=self.env,
+                env=self.extractor_env,
                 random_policy=uniform_random_policy,
                 extractor=extractor,
                 sampler=sampler,
@@ -251,9 +171,8 @@ class IntrinsicRewardFunctions(nn.Module):
                 writer=self.writer,
                 epochs=self.args.extractor_epochs,
             )
-            if extractor.name != "DummyExtractor":
-                final_timesteps = trainer.train()
-                self.current_timesteps += final_timesteps
+            final_timesteps = trainer.train()
+            self.current_timesteps += final_timesteps
 
             torch.save(extractor.state_dict(), model_path)
         else:
@@ -268,15 +187,10 @@ class IntrinsicRewardFunctions(nn.Module):
         from utils.rl import get_vector
 
         # === Define eigenvectors === #
-        eigenvectors, heatmaps = get_vector(self.env, self.extractor, self.args)
-        if isinstance(eigenvectors, np.ndarray):
-            self.eigenvectors = torch.from_numpy(eigenvectors).to(self.args.device)
-        else:
-            # this is the case for ALLO
-            # where eigenvectors are returned as index and sign tuple.
-            self.eigenvectors = eigenvectors
-            pass
-
+        eigenvectors, heatmaps = get_vector(
+            self.extractor_env, self.extractor, self.args
+        )
+        self.eigenvectors = eigenvectors
         self.logger.write_images(
             step=self.current_timesteps, images=heatmaps, logdir="Image/Heatmaps"
         )
@@ -303,12 +217,9 @@ class IntrinsicRewardFunctions(nn.Module):
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        feature_dim = (
-            self.args.feature_dim if self.args.feature_dim else self.args.state_dim
-        )
         drnd_model = DRNDModel(
             input_dim=self.args.state_dim,
-            output_dim=feature_dim,
+            output_dim=self.args.feature_dim,
             num=10,
             device=self.args.device,
         )

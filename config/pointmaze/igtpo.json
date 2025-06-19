@@ -1,5 +1,4 @@
 {
-    "extractor_epochs": 10000,
     "timesteps": 2.5e7,
     "eps_clip": 0.2,
     "K_epochs": 5,
@@ -9,5 +8,5 @@
     "num_minibatch": 4,
     "minibatch_size": 2048,
     "batch_size": 8192,
-    "intrinsic_reward_mode": "all"
+    "intrinsic_reward_mode": "all-drnd"
 }

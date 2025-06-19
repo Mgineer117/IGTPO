@@ -66,10 +66,7 @@ def get_args():
         "--num-options", type=int, default=None, help="Number of samples for training."
     )
     parser.add_argument(
-        "--extractor-type", type=str, default=None, help="Base learning rate."
-    )
-    parser.add_argument(
-        "--extractor-lr", type=float, default=1e-4, help="Base learning rate."
+        "--extractor-lr", type=float, default=1e-3, help="Base learning rate."
     )
     parser.add_argument(
         "--igtpo-actor-lr", type=float, default=1e-3, help="Base learning rate."
@@ -101,7 +98,7 @@ def get_args():
     parser.add_argument(
         "--extractor-epochs",
         type=int,
-        default=None,
+        default=50000,
         help="Number of training epochs.",
     )
     parser.add_argument(
@@ -111,7 +108,7 @@ def get_args():
         "--eval-num", type=int, default=10, help="Number of training epochs."
     )
     parser.add_argument(
-        "--marker", type=int, default=2, help="Number of training epochs."
+        "--episode-len", type=int, default=None, help="Number of training epochs."
     )
     parser.add_argument("--num-minibatch", type=int, default=None, help="")
     parser.add_argument("--minibatch-size", type=int, default=None, help="")

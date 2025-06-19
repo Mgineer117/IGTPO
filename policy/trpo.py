@@ -87,14 +87,14 @@ class TRPO_Learner(Base):
         self.train()
         t0 = time.time()
 
-        self.record_state_visitations(batch)
-
         # Ingredients: Convert batch data to tensors
         states = self.preprocess_state(batch["states"])
         actions = self.preprocess_state(batch["actions"])
         rewards = self.preprocess_state(batch["rewards"])
         terminals = self.preprocess_state(batch["terminals"])
         old_logprobs = self.preprocess_state(batch["logprobs"])
+
+        self.record_state_visitations(states)
 
         # Compute advantages and returns
         with torch.no_grad():

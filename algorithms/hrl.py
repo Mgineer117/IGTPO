@@ -25,7 +25,6 @@ class HRL(nn.Module):
 
         if self.args.intrinsic_reward_mode in ("eigenpurpose", "allo"):
             self.intrinsic_reward_fn = IntrinsicRewardFunctions(
-                env=env,
                 logger=logger,
                 writer=writer,
                 args=args,
@@ -153,3 +152,8 @@ class HRL(nn.Module):
             K=self.args.K_epochs,
             device=self.args.device,
         )
+
+        if hasattr(self.env, "get_grid"):
+            for p in self.policies:
+                p.grid = self.env.get_grid()
+            self.hl_policy.grid = self.env.get_grid()
