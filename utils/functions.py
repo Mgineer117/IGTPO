@@ -14,7 +14,7 @@ from log.wandb_logger import WandbLogger
 from utils.wrapper import FetchWrapper, GridWrapper, ObsNormWrapper, PointMazeWrapper
 
 EPI_LENGTH = {
-    "maze-v0": 200,
+    "maze-v0": 300,
     "maze-v1": 100,
     "maze-v2": 50,
     "ninerooms-v0": 100,
