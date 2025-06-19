@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=igtpo
 #SBATCH --account=huytran1-ic
-#SBATCH --partition=eng-research-gpu
+#SBATCH --partition=IllinoisComputes-GPU
 #SBATCH --nodes=1
 #SBATCH --ntasks=8
 #SBATCH --cpus-per-task=4
