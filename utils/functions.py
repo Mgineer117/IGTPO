@@ -18,6 +18,7 @@ EPI_LENGTH = {
     "maze-v1": 100,
     "maze-v2": 50,
     "ninerooms-v0": 100,
+    "ctf-v0": 100,
     "pointmaze-medium": 200,
     "fetch-reach": 50,
 }
@@ -89,6 +90,10 @@ def call_env(args, episode_len: int | None = None):
         args.positional_indices = [0, 1]
         args.action_dim = env.action_space.n
         args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
+    elif env_name == "ctf":
+        from gridworld.envs.ctf import CtF
+
+        env = CtF(grid_type=version, max_steps=max_steps)
     elif env_name == "fetch":
 
         gym.register_envs(gymnasium_robotics)

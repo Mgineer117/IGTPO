@@ -66,7 +66,7 @@ class DRND_PPO_Algorithm(nn.Module):
             self.args.feature_dim if self.args.feature_dim else self.args.state_dim
         )
         drnd_model = DRNDModel(
-            input_dim=self.args.state_dim,
+            input_dim=len(self.args.positional_indices),
             output_dim=feature_dim,
             num=10,
             device=self.args.device,
@@ -80,6 +80,7 @@ class DRND_PPO_Algorithm(nn.Module):
             critic=critic,
             drnd_model=drnd_model,
             drnd_critic=drnd_critic,
+            positional_indices=self.args.positional_indices,
             nupdates=self.args.nupdates,
             actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,

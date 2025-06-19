@@ -18,6 +18,7 @@ class DRNDPPO_Learner(Base):
         critic: PPO_Critic,
         drnd_model: nn.Module,
         drnd_critic: PPO_Critic,
+        positional_indices: list,
         nupdates: int | None = None,
         actor_lr: float = 3e-4,
         critic_lr: float = 5e-4,
@@ -47,6 +48,7 @@ class DRNDPPO_Learner(Base):
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
 
+        self.positional_indices = positional_indices
         self.nupdates = nupdates
         self.num_minibatch = num_minibatch
         self.minibatch_size = minibatch_size
@@ -105,7 +107,9 @@ class DRNDPPO_Learner(Base):
 
     def intrinsic_reward(self, next_states: torch.Tensor):
         with torch.no_grad():
-            predict_next_feature, target_next_feature = self.drnd(next_states)
+            predict_next_feature, target_next_feature = self.drnd(
+                next_states[:, self.positional_indices]
+            )
 
             mu = torch.mean(target_next_feature, axis=0)
             B2 = torch.mean(target_next_feature**2, axis=0)
@@ -359,7 +363,9 @@ class DRNDPPO_Learner(Base):
 
     def drnd_loss(self, next_states: torch.Tensor):
         """Curiosity-driven(Distributional Random Network Distillation)"""
-        predict_next_state_feature, target_next_state_feature = self.drnd(next_states)
+        predict_next_state_feature, target_next_state_feature = self.drnd(
+            next_states[:, self.positional_indices]
+        )
         idx = torch.randint(high=self.drnd.num_target, size=(next_states.shape[0],))
         with torch.no_grad():
             target = target_next_state_feature[

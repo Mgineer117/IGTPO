@@ -48,7 +48,7 @@ class CtfMvNEnv(MultiGridEnv):
 
     def __init__(
         self,
-        map_path: str,
+        grid_type: int,
         enemy_policies: (
             list[Type[CtfPolicyT]] | Type[CtfPolicyT] | list[str] | str
         ) = RoombaPolicy(),
@@ -135,8 +135,25 @@ class CtfMvNEnv(MultiGridEnv):
         self.actions_set = GridActions
         see_through_walls: bool = False
 
-        self._map_path: Final[str] = map_path
-        self._field_map: Final[NDArray] = load_text_map(map_path)
+        if grid_type == 0:
+            ctf_grid = np.array(
+                [
+                    [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
+                    [6, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 6],
+                    [6, 1, 1, 3, 1, 1, 0, 0, 0, 0, 0, 6],
+                    [6, 1, 1, 1, 1, 6, 6, 0, 0, 0, 0, 6],
+                    [6, 1, 1, 1, 1, 6, 6, 0, 0, 0, 0, 6],
+                    [6, 1, 1, 1, 1, 6, 6, 0, 0, 2, 4, 6],
+                    [6, 1, 1, 1, 1, 6, 6, 0, 0, 0, 0, 6],
+                    [6, 1, 5, 1, 1, 6, 6, 0, 0, 0, 0, 6],
+                    [6, 1, 1, 1, 1, 6, 6, 0, 0, 0, 0, 6],
+                    [6, 1, 1, 3, 1, 1, 0, 0, 0, 0, 0, 6],
+                    [6, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 6],
+                    [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
+                ]
+            )
+
+        self._field_map: Final[NDArray] = ctf_grid  # load_text_map(ctf_grid)
         height: int
         width: int
         height, width = self._field_map.shape
@@ -1136,16 +1153,16 @@ class CtF(CtfMvNEnv):
 
     def __init__(
         self,
-        map_path: str,
+        grid_type: int,
+        max_steps: int,
         enemy_policy: Type[CtfPolicyT] | str = RoombaPolicy,
         enemy_policy_kwarg: dict[str, Any] = {},
         battle_range: float = 1,
-        territory_adv_rate: float = 0.75,
+        territory_adv_rate: float = 1.0,
         flag_reward: float = 1,
-        battle_reward_ratio: float = 0.25,
+        battle_reward_ratio: float = 0.5,
         obstacle_penalty_ratio: float = 0,
         step_penalty_ratio: float = 0.01,
-        max_steps: int = 100,
         observation_option: ObservationOption = "positional",
         observation_scaling: float = 1,
         render_mode: Literal["human", "rgb_array"] = "rgb_array",
@@ -1187,7 +1204,7 @@ class CtF(CtfMvNEnv):
             Types of objects that should not be cached.
         """
         super().__init__(
-            map_path=map_path,
+            grid_type=grid_type,
             enemy_policies=enemy_policy,
             enemy_policy_kwargs=enemy_policy_kwarg,
             battle_range=battle_range,

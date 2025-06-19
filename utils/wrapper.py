@@ -57,6 +57,41 @@ class ObsNormWrapper(gym.ObservationWrapper):
         return getattr(self.env, name)
 
 
+class CTFWrapper(gym.Wrapper):
+    def __init__(self, env: gym.Env):
+        super(CTFWrapper, self).__init__(env)
+
+    def reset(self, **kwargs):
+        observation_dict, info = self.env.reset(**kwargs)
+        info.update(observation_dict)
+
+        observation = np.concatenate(
+            (
+                observation_dict["achieved_goal"],
+                observation_dict["desired_goal"],
+            )
+        )
+
+        return observation, info
+
+    def step(self, action):
+        # Call the original step method
+        observation_dict, reward, termination, truncation, info = self.env.step(action)
+        info.update(observation_dict)
+
+        observation = np.concatenate(
+            (
+                observation_dict["achieved_goal"],
+                observation_dict["desired_goal"],
+            )
+        )
+        return observation, reward, termination, truncation, info
+
+    def __getattr__(self, name):
+        # Forward any unknown attribute to the inner environment
+        return getattr(self.env, name)
+
+
 class GridWrapper(gym.Wrapper):
     def __init__(self, env: gym.Env):
         super(GridWrapper, self).__init__(env)

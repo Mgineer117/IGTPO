@@ -218,7 +218,7 @@ class IntrinsicRewardFunctions(nn.Module):
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
         drnd_model = DRNDModel(
-            input_dim=self.args.state_dim,
+            input_dim=len(self.args.positional_indices),
             output_dim=self.args.feature_dim,
             num=10,
             device=self.args.device,
@@ -232,6 +232,7 @@ class IntrinsicRewardFunctions(nn.Module):
             critic=critic,
             drnd_model=drnd_model,
             drnd_critic=drnd_critic,
+            positional_indices=self.args.positional_indices,
             actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,
             drnd_lr=5e-5,
