@@ -106,7 +106,9 @@ class IGTPO_Learner(Base):
         self.steps += 1
 
     def prune(self):
-        if np.all(self.probability_history > 0.0):  #   and len(tied_indices) == 1:
+        if (
+            np.all(self.probability_history > 0.0) and len(self.probability_history) > 1
+        ):  #   and len(tied_indices) == 1:
             least_contributing_index = np.argmin(self.probability_history)
 
             # === PRUNE CRITICS === #
