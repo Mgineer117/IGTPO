@@ -439,7 +439,7 @@ class IGTPO_Learner(Base):
             f"{self.name}/loss/intrinsic_critic_loss": intrinsic_critic_loss,
             f"{self.name}/loss/entropy_loss": entropy_loss.item(),
             f"{self.name}/grad/actor": actor_grad_norm.item(),
-            f"{self.name}/analytics/avg_intrinsic_rewards ({i})": torch.mean(
+            f"{self.name}/analytics/avg_intrinsic_rewards ({self.contributing_indices[i]})": torch.mean(
                 intrinsic_rewards
             ).item(),
         }
