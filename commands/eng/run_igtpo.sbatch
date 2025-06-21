@@ -3,7 +3,7 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=eng-research-gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks=2
+#SBATCH --ntasks=6
 #SBATCH --cpus-per-task=8
 #SBATCH --gres=gpu:1
 #SBATCH --time=2-00:00:00
@@ -21,8 +21,13 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name ninerooms-v0 --project igtpo --algo-name igtpo --num-runs 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo --algo-name igtpo --num-runs 10 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name ppo --project igtpo --env-name fourrooms-v0 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name drndppo --project igtpo --env-name fourrooms-v0 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name psne --project igtpo --env-name fourrooms-v0 &
+
+CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name ppo --project igtpo --env-name maze-v2 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name drndppo --project igtpo --env-name maze-v2 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name psne --project igtpo --env-name maze-v2 &
 
 # === Wait for all background jobs to finish ===
 wait
