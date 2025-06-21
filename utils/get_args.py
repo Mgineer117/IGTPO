@@ -69,7 +69,7 @@ def get_args():
         "--extractor-lr", type=float, default=1e-3, help="Base learning rate."
     )
     parser.add_argument(
-        "--igtpo-actor-lr", type=float, default=1e-3, help="Base learning rate."
+        "--igtpo-actor-lr", type=float, default=3e-3, help="Base learning rate."
     )
     parser.add_argument(
         "--actor-lr", type=float, default=1e-4, help="Base learning rate."
@@ -81,10 +81,10 @@ def get_args():
         "--eps-clip", type=float, default=None, help="Base learning rate."
     )
     parser.add_argument(
-        "--actor-fc-dim", type=list, default=[256, 256], help="Base learning rate."
+        "--actor-fc-dim", type=list, default=[64, 64], help="Base learning rate."
     )
     parser.add_argument(
-        "--critic-fc-dim", type=list, default=[256, 256], help="Base learning rate."
+        "--critic-fc-dim", type=list, default=[128, 128], help="Base learning rate."
     )
     parser.add_argument(
         "--feature-dim", type=int, default=None, help="Base learning rate."

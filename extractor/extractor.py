@@ -124,8 +124,8 @@ class ALLO(Base):
         phi1, _ = self(s1)  # [B, d]
         phi2, _ = self(s2)
 
-        if self.nupdates % 5000 == 0:
-            self.permutation_array = np.random.permutation(self.permutation_array)
+        # if self.nupdates % 5000 == 0:
+        # self.permutation_array = np.random.permutation(self.permutation_array)
 
         phi1 = phi1[:, self.permutation_array]
         phi2 = phi2[:, self.permutation_array]

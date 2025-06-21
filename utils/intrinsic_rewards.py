@@ -27,11 +27,11 @@ class IntrinsicRewardFunctions(nn.Module):
 
         # === MAKE ENV === #
         if self.args.intrinsic_reward_mode == "allo":
-            self.num_rewards = self.args.num_options
+            self.num_rewards = self.args.num_options  # - 2
             self.extractor_mode = "allo"
             self.define_extractor()
             self.define_eigenvectors()
-            self.define_intrinsic_reward_normalizer()
+            # self.define_intrinsic_reward_normalizer()
 
             self.sources = ["allo" for _ in range(self.num_rewards)]
         elif self.args.intrinsic_reward_mode == "drnd":
@@ -47,7 +47,7 @@ class IntrinsicRewardFunctions(nn.Module):
 
             self.define_extractor()
             self.define_eigenvectors()
-            self.define_intrinsic_reward_normalizer()
+            # self.define_intrinsic_reward_normalizer()
             self.define_drnd_policy()
 
             self.sources = ["allo" for _ in range(self.args.num_options)]
@@ -64,8 +64,9 @@ class IntrinsicRewardFunctions(nn.Module):
             # === REMOVE EIGENVECTORS & NORMALIZER === #
             if source == "allo":
                 del self.eigenvectors[i]
-                del self.reward_rms[i]
                 del self.sources[i]
+                if hasattr(self, "reward_rms"):
+                    del self.reward_rms[i]
             elif source == "drnd":
                 del self.sources[i]
 

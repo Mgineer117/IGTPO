@@ -67,9 +67,9 @@ class IGTPOTrainer:
 
         self.log_interval = log_interval
         self.prune_interval = int(
-            self.timesteps / self.policy.intrinsic_reward_fn.num_rewards
+            (self.timesteps / 2) / self.policy.intrinsic_reward_fn.num_rewards
         )
-        self.trim_interval = int(self.timesteps / (self.policy.num_inner_updates - 2))
+        self.trim_interval = int(self.timesteps / (self.policy.num_inner_updates - 3))
         self.eval_interval = int(self.timesteps / self.log_interval)
 
         # initialize the essential training components
@@ -97,7 +97,7 @@ class IGTPOTrainer:
             desc=f"{self.policy.name} Training (Timesteps)",
         ) as pbar:
             while pbar.n < self.timesteps + self.init_timesteps:
-                loss_dict, timesteps = self.policy.learn(
+                loss_dict, timesteps, visitation_dict = self.policy.learn(
                     self.env, self.outer_sampler, self.inner_sampler, self.seed
                 )
                 # print(loss_dict)
@@ -108,20 +108,21 @@ class IGTPOTrainer:
                 self.write_log(loss_dict, current_step)
                 pbar.update(timesteps)
 
-                # === reduce target_kl === #
+                # === reduce igtpo lr === #
                 # self.policy.lr_scheduler(
                 #     current_step / (self.timesteps + self.init_timesteps)
                 # )
 
                 # === PRUNE TWIG === #
                 if current_step > self.prune_interval * (prune_idx + 1):
-                    self.policy.prune()
-                    prune_idx += 1
+                    pruned = self.policy.prune()
+                    if pruned:
+                        prune_idx += 1
 
                 # === TRIM TWIG === #
-                if current_step > self.trim_interval * (trim_idx + 1):
-                    self.policy.trim()
-                    trim_idx += 1
+                # if current_step > self.trim_interval * (trim_idx + 1):
+                #     self.policy.trim()
+                #     trim_idx += 1
 
                 # === EVALUATIONS === #
                 if current_step >= self.eval_interval * (eval_idx + 1):
@@ -135,7 +136,7 @@ class IGTPOTrainer:
                     fig, ax = plt.subplots(figsize=(8, 6))
                     ax.stem(
                         np.array([int(x) for x in self.policy.contributing_indices]),
-                        self.policy.probabilities,
+                        self.policy.probability_history,
                     )
 
                     # Convert figure to a NumPy array
@@ -153,8 +154,9 @@ class IGTPOTrainer:
 
                     plt.close()
 
-                    if self.policy.state_visitation is not None:
-                        visitation_map = self.policy.state_visitation
+                    # if self.policy.state_visitation is not None:
+                    for key, value in visitation_dict.items():
+                        visitation_map = value
                         vmin, vmax = visitation_map.min(), visitation_map.max()
                         visitation_map = (visitation_map - vmin) / (vmax - vmin + 1e-8)
                         visitation_map = self.visitation_to_rgb(visitation_map)
@@ -162,7 +164,7 @@ class IGTPOTrainer:
                             image=visitation_map,
                             step=current_step,
                             logdir=f"Image",
-                            name="visitation map",
+                            name=key,
                         )
 
                     self.write_log(eval_dict, step=current_step, eval_log=True)

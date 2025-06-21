@@ -101,4 +101,4 @@ class IGTPO_Algorithm(nn.Module):
         )
 
         if hasattr(self.env, "get_grid"):
-            self.policy.grid = self.env.get_grid()
+            self.policy.actor.grid = self.env.get_grid()

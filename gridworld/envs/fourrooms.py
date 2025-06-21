@@ -17,39 +17,20 @@ from gymnasium import spaces
 from gymnasium.core import ActType, ObsType
 from numpy.typing import NDArray
 
-from gridworld.core.agent import Agent, GridActions
+from gridworld.core.agent import Agent, AgentT, GridActions, PolicyAgent
 from gridworld.core.constants import *
 from gridworld.core.grid import Grid
-from gridworld.core.object import Goal, Wall
+from gridworld.core.object import Goal, Lava, Obstacle, Wall
 from gridworld.core.world import GridWorld
 from gridworld.multigrid import MultiGridEnv
+from gridworld.policy.ctf.heuristic import (
+    HEURISTIC_POLICIES,
+    CtfPolicyT,
+    RoombaPolicy,
+    RwPolicy,
+)
 from gridworld.typing import Position
 from gridworld.utils.window import Window
-
-
-class ObservationDict(TypedDict):
-    blue_agent: NDArray[np.int_]
-    red_agent: NDArray[np.int_]
-    blue_flag: NDArray[np.int_]
-    red_flag: NDArray[np.int_]
-    blue_territory: NDArray[np.int_]
-    red_territory: NDArray[np.int_]
-    obstacle: NDArray[np.int_]
-    is_red_agent_defeated: int
-
-
-class MultiAgentObservationDict(TypedDict):
-    blue_agent: NDArray[np.int_]
-    red_agent: NDArray[np.int_]
-    blue_flag: NDArray[np.int_]
-    red_flag: NDArray[np.int_]
-    blue_territory: NDArray[np.int_]
-    red_territory: NDArray[np.int_]
-    obstacle: NDArray[np.int_]
-    terminated_agents: NDArray[np.int_]
-
-
-Observation: TypeAlias = ObservationDict | MultiAgentObservationDict | NDArray[np.int_]
 
 
 class FourRooms(MultiGridEnv):
@@ -59,24 +40,15 @@ class FourRooms(MultiGridEnv):
 
     def __init__(
         self,
-        grid_type: int = 0,
-        max_steps: int = 50,
-        highlight_visible_cells: bool | None = False,
+        grid_type: int,
+        max_steps: int,
+        num_random_agent: int = 0,
+        highlight_visible_cells: bool = False,
         tile_size: int = 10,
-        state_representation: str = "tensor",
+        state_representation: str = "positional",
         render_mode: Literal["human", "rgb_array"] = "rgb_array",
-    ) -> None:
-        """
-        Initialize a new capture the flag environment.
-
-        Parameters
-        ----------
-
-        """
-        ### fundamental parameters
-        self.grid_size = (13, 13)
+    ):
         self.state_representation = state_representation
-
         if grid_type < 0 or grid_type >= 3:
             raise ValueError(
                 f"The Fourroom only accepts grid_type of 0 and 1, given {grid_type}"
@@ -84,10 +56,8 @@ class FourRooms(MultiGridEnv):
         else:
             self.grid_type = grid_type
 
-        self.width = self.grid_size[0]
-        self.height = self.grid_size[1]
-        self.grid_size = self.grid_size
         self.max_steps = max_steps
+
         self.world = GridWorld
         self.actions_set = GridActions
 
@@ -103,18 +73,32 @@ class FourRooms(MultiGridEnv):
             )
         ]
 
-        self.goal_positions = [
-            (3, 9),
-            (7, 9),
-            (9, 9),
-        ]
-        self.agent_positions = [
-            (9, 3),
-            (11, 1),
-            (9, 3),
+        # Define positions for goals and agents
+        self.goal_positions = [(9, 3), (11, 1)]
+        self.agent_positions = [(3, 9), (7, 9)]
+
+        self.num_random_agent = num_random_agent
+        self.random_agent_positions = [
+            [(6, 5), (6, 14)],
         ]
 
-        self.map = [
+        for i in range(1, 1 + self.num_random_agent):
+            self.agents.append(
+                PolicyAgent(
+                    RwPolicy(action_set=self.actions_set),
+                    self.world,
+                    index=i,
+                    color="red",
+                    bg_color="light_red",
+                    actions=self.actions_set,
+                    type="obstacle",
+                )
+            )
+
+        self.grids = {}
+        self.grid_imgs = {}
+        # Explicit maze structure based on the image
+        self.map_structure = [
             "#############",
             "#    #      #",
             "#    #      #",
@@ -130,10 +114,14 @@ class FourRooms(MultiGridEnv):
             "#############",
         ]
 
+        self.width = len(self.map_structure[0])
+        self.height = len(self.map_structure)
+        self.grid_size = (self.width, self.height)
+
         super().__init__(
             width=self.width,
             height=self.height,
-            max_steps=max_steps,
+            max_steps=self.max_steps,
             see_through_walls=see_through_walls,
             agents=self.agents,
             actions_set=self.actions_set,
@@ -142,6 +130,12 @@ class FourRooms(MultiGridEnv):
             highlight_visible_cells=highlight_visible_cells,
             tile_size=tile_size,
         )
+
+    def get_grid(self):
+        self.reset()
+        grid = self.grid.encode()
+        self.close()
+        return grid
 
     def _set_observation_space(self) -> spaces.Dict | spaces.Box:
         match self.state_representation:
@@ -157,7 +151,7 @@ class FourRooms(MultiGridEnv):
             case "tensor":
                 observation_space = spaces.Box(
                     low=0,
-                    high=10,
+                    high=13,
                     shape=(self.width, self.height, self.world.encode_dim),
                     dtype=np.int64,
                 )
@@ -180,15 +174,15 @@ class FourRooms(MultiGridEnv):
         self.grid = Grid(width, height, self.world)
 
         # Translate the maze structure into the grid
-        for x, row in enumerate(self.map):
-            for y, cell in enumerate(row):
+        for y, row in enumerate(self.map_structure):
+            for x, cell in enumerate(row):
                 if cell == "#":
                     self.grid.set(x, y, Wall(self.world))
                 elif cell == " ":
                     self.grid.set(x, y, None)
 
-        # place goal
-        goal = Goal(self.world, 0)
+        # Place the goal
+        goal = Goal(self.world, index=4)
         self.put_obj(goal, *self.goal_positions[self.grid_type])
         goal.init_pos, goal.cur_pos = self.goal_positions[self.grid_type]
 
@@ -198,9 +192,13 @@ class FourRooms(MultiGridEnv):
             agent_positions = random.sample(coords, 1)[0]
         else:
             agent_positions = self.agent_positions[self.grid_type]
+        self.place_agent(self.agents[0], pos=agent_positions)
 
-        for agent in self.agents:
-            self.place_agent(agent, pos=agent_positions)
+        if len(self.agents) > 1:
+            for i, agent in enumerate(self.agents[1:]):
+                self.place_agent(
+                    agent, pos=self.random_agent_positions[self.grid_type][i]
+                )
 
     def find_obj_coordinates(self, obj) -> tuple[int, int] | None:
         """
@@ -222,7 +220,6 @@ class FourRooms(MultiGridEnv):
         seed: int | None = None,
         options: dict = {},
     ):
-        # obs, info = super().reset(seed=seed, options=options)
         super().reset(seed=seed, options=options)
 
         ### NOTE: NOT MULTIAGENT SETTING
@@ -231,17 +228,21 @@ class FourRooms(MultiGridEnv):
 
         return observations, info
 
-    def step(self, actions):
+    def step(self, action):
         self.step_count += 1
 
         ### NOTE: MULTIAGENT SETTING NOT IMPLEMENTED
-        actions = np.argmax(actions)
-        actions = [actions]
-        order = np.random.permutation(len(actions))
+        action = np.argmax(action)
+        actions = [action]
 
-        rewards = np.zeros(len(actions))
+        for i in range(1, len(self.agents)):
+            actions.append(self.agents[i].policy.act())
+
+        rewards = np.zeros(1)
         info = {"success": False}
-        for i in order:
+        done = False
+
+        for i in range(len(self.agents)):
             if (
                 self.agents[i].terminated
                 or self.agents[i].paused
@@ -251,7 +252,6 @@ class FourRooms(MultiGridEnv):
 
             # Get the current agent position
             curr_pos = self.agents[i].pos
-            done = False
 
             # Rotate left
             if actions[i] == self.actions.left:
@@ -260,10 +260,15 @@ class FourRooms(MultiGridEnv):
                 fwd_cell = self.grid.get(*fwd_pos)
 
                 if fwd_cell is not None:
-                    if fwd_cell.type == "goal":
-                        done = True
-                        rewards = self._reward(i, rewards, 1)
-                        info["success"] = True
+                    if self.agents[i].type == "agent":
+                        if fwd_cell.type == "goal":
+                            done = True
+                            rewards = self._reward(i, rewards, 1)
+                            info["success"] = True
+                        elif fwd_cell.type == "lava":
+                            done = True
+                            rewards[i] = -1
+                            info["success"] = False
                 elif fwd_cell is None or fwd_cell.can_overlap():
                     self.grid.set(*self.agents[i].pos, None)
                     self.grid.set(*fwd_pos, self.agents[i])
@@ -275,11 +280,17 @@ class FourRooms(MultiGridEnv):
                 # Get the contents of the cell in front of the agent
                 fwd_pos = tuple(a + b for a, b in zip(curr_pos, (0, +1)))
                 fwd_cell = self.grid.get(*fwd_pos)
+
                 if fwd_cell is not None:
-                    if fwd_cell.type == "goal":
-                        done = True
-                        rewards = self._reward(i, rewards, 1)
-                        info["success"] = True
+                    if self.agents[i].type == "agent":
+                        if fwd_cell.type == "goal":
+                            done = True
+                            rewards = self._reward(i, rewards, 1)
+                            info["success"] = True
+                        elif fwd_cell.type == "lava":
+                            done = True
+                            rewards[i] = -1
+                            info["success"] = False
                 elif fwd_cell is None or fwd_cell.can_overlap():
                     self.grid.set(*self.agents[i].pos, None)
                     self.grid.set(*fwd_pos, self.agents[i])
@@ -291,11 +302,17 @@ class FourRooms(MultiGridEnv):
                 # Get the contents of the cell in front of the agent
                 fwd_pos = tuple(a + b for a, b in zip(curr_pos, (-1, 0)))
                 fwd_cell = self.grid.get(*fwd_pos)
+
                 if fwd_cell is not None:
-                    if fwd_cell.type == "goal":
-                        done = True
-                        rewards = self._reward(i, rewards, 1)
-                        info["success"] = True
+                    if self.agents[i].type == "agent":
+                        if fwd_cell.type == "goal":
+                            done = True
+                            rewards = self._reward(i, rewards, 1)
+                            info["success"] = True
+                        elif fwd_cell.type == "lava":
+                            done = True
+                            rewards[i] = -1
+                            info["success"] = False
                 elif fwd_cell is None or fwd_cell.can_overlap():
                     self.grid.set(*self.agents[i].pos, None)
                     self.grid.set(*fwd_pos, self.agents[i])
@@ -306,11 +323,17 @@ class FourRooms(MultiGridEnv):
                 # Get the contents of the cell in front of the agent
                 fwd_pos = tuple(a + b for a, b in zip(curr_pos, (+1, 0)))
                 fwd_cell = self.grid.get(*fwd_pos)
+
                 if fwd_cell is not None:
-                    if fwd_cell.type == "goal":
-                        done = True
-                        rewards = self._reward(i, rewards, 1)
-                        info["success"] = True
+                    if self.agents[i].type == "agent":
+                        if fwd_cell.type == "goal":
+                            done = True
+                            rewards = self._reward(i, rewards, 1)
+                            info["success"] = True
+                        elif fwd_cell.type == "lava":
+                            done = True
+                            rewards[i] = -1
+                            info["success"] = False
                 elif fwd_cell is None or fwd_cell.can_overlap():
                     self.grid.set(*self.agents[i].pos, None)
                     self.grid.set(*fwd_pos, self.agents[i])
@@ -344,29 +367,21 @@ class FourRooms(MultiGridEnv):
         self,
     ):
         if self.state_representation == "positional":
-            obs = np.array(
-                [
-                    self.agents[0].pos[0],
-                    self.agents[0].pos[1],
-                    self.goal_positions[self.grid_type][0],
-                    self.goal_positions[self.grid_type][1],
-                ]
-            )
-            obs = obs / np.maximum(self.grid_size[0], self.grid_size[1])
+            obs = {
+                "achieved_goal": np.array(
+                    [self.agents[0].pos[0], self.agents[0].pos[1]]
+                ),
+                "desired_goal": np.array(
+                    [
+                        self.goal_positions[self.grid_type][0],
+                        self.goal_positions[self.grid_type][1],
+                    ]
+                ),
+            }
         elif self.state_representation == "tensor":
-            obs = [
-                self.grid.encode_for_agents(agent_pos=self.agents[i].pos)
-                for i in range(len(self.agents))
-            ]
-            obs = [self.world.normalize_obs * ob for ob in obs]
-            obs = obs[0][:, :, 0:1]
+            obs = self.grid.encode()
         elif self.state_representation == "vectorized_tensor":
-            obs = [
-                self.grid.encode_for_agents(agent_pos=self.agents[i].pos)
-                for i in range(len(self.agents))
-            ]
-            obs = [self.world.normalize_obs * ob for ob in obs]
-            obs = obs[0][:, :, 0:1].flatten()
+            obs = self.grid.encode().flatten()
         else:
             raise ValueError(
                 f"Unknown state representation {self.state_representation}. "
@@ -374,53 +389,69 @@ class FourRooms(MultiGridEnv):
             )
         return obs
 
-    def get_rewards_heatmap(self, extractor: torch.nn.Module, eigenvectors: np.ndarray):
+    def get_rewards_heatmap(
+        self, extractor: torch.nn.Module, eigenvectors: np.ndarray | list
+    ):
         assert self.state_representation in [
             "vectorized_tensor",
             "tensor",
+            "positional",
         ], f"Unsupported state representation: {self.state_representation}"
 
         # Environment indices
         empty_idx = 1
         goal_idx = 8
         agent_idx = 10
+        obs_idx = 13
         wall_idx = 2
 
         # Get base state
-        state, _ = self.reset()
+        state = self.get_grid()
         agent_pos = np.where(state == agent_idx)
         state[agent_pos] = empty_idx
-        self.close()
+        grid = state
 
-        if self.state_representation != "tensor":
-            state = state.reshape(self.width, self.height, -1)
+        mask = (grid != wall_idx) & (grid != goal_idx)
 
-        mask = (state != wall_idx) & (state != goal_idx)
-        non_mask = ~mask
+        # Get coordinates where agent can be placed
+        valid_coords = np.argwhere(mask)  # shape: [num_valid, 2]
+
+        # Generate a batch of states
+        state_batch = []
+        for coord in valid_coords:
+            if self.state_representation in ("tensor", "vectorized_tensor"):
+                new_grid = grid.copy()
+                new_grid[new_grid[..., 0] == agent_idx] = empty_idx
+                new_grid[coord[0], coord[1], 0] = agent_idx
+
+                state_batch.append(new_grid)
+            elif self.state_representation == "positional":
+                state = np.array([coord[0], coord[1]])
+                state_batch.append(state)
+
+        # Stack the batch: shape = [num_valid, H, W] or [num_valid, H, W, C]
+        state_batch = np.stack(state_batch)
 
         heatmaps = []
         grid_shape = (self.width, self.height, 1)
-        for n in range(eigenvectors.shape[0]):
-            eig = eigenvectors[n]
-            reward_map = np.full(grid_shape, fill_value=np.nan)
+        for n in range(len(eigenvectors)):
+            reward_map = np.full(grid_shape, fill_value=0.0)
 
-            for i in range(grid_shape[0]):
-                for j in range(grid_shape[1]):
-                    current_idx = (i, j, 0)
-                    current_val = state[current_idx]
+            with torch.no_grad():
+                features, _ = extractor(state_batch)
+                features = features.cpu().numpy()
 
-                    if current_val == wall_idx or current_val == goal_idx:
-                        reward_map[current_idx] = 0.0
-                    else:
-                        # Copy and manipulate state
-                        state_copy = np.copy(state)
-                        state_copy[current_idx] = agent_idx
-                        with torch.no_grad():
-                            feature, _ = extractor(state_copy)
-                        feature = feature.cpu().numpy().squeeze(0)
+            for i in range(features.shape[0]):
+                if self.state_representation in ("tensor", "vectorized_tensor"):
+                    agent_pos = np.argwhere(state_batch[i] == agent_idx)[0]
+                elif self.state_representation == "positional":
+                    agent_pos = [state_batch[i][0], state_batch[i][1]]
+                x, y = agent_pos[0], agent_pos[1]
 
-                        reward = np.dot(eig, feature)
-                        reward_map[current_idx] = reward
+                eigenvector_idx, eigenvector_sign = eigenvectors[n]
+                reward = eigenvector_sign * features[i, eigenvector_idx]
+
+                reward_map[x, y, 0] = reward
 
             # reward_map = # normalize between -1 to 1
             pos_mask = np.logical_and(mask, (reward_map > 0))
@@ -449,7 +480,7 @@ class FourRooms(MultiGridEnv):
                     ) - 1.0
 
             # Set all other entries (walls, empty) to 0
-            reward_map = reward_map.reshape(self.width, self.height, -1)
+            # print(reward_map[:, :, 0])
             reward_map = self.reward_map_to_rgb(reward_map, mask)
 
             # set color theme as blue and red (blue = -1 and red = 1)

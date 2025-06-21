@@ -35,7 +35,7 @@ class EigenOption_Learner(Base):
         super(EigenOption_Learner, self).__init__()
 
         # constants
-        self.name = "EigenOption"
+        self.name = "HRL"
         self.device = device
 
         self.state_dim = actor.state_dim

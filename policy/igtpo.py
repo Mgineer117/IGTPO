@@ -101,27 +101,13 @@ class IGTPO_Learner(Base):
         self.to(self.dtype).to(self.device)
 
     def lr_scheduler(self, fraction: float):
-        self.target_kl = self.init_target_kl * (1 - fraction)
+        # self.target_kl = self.init_target_kl * (1 - fraction)
+        self.actor_lr = self.actor_lr * (1 - fraction)
         self.steps += 1
 
     def prune(self):
-        if len(self.probabilities) > 1:
-            # === MEASURE THE PROBABILITY OF EXTRINSIC SIGNALS === #
-            if np.any(self.probabilities > 0.0):
-                probabilities = self.probabilities
-                min_prob = np.min(probabilities)
-                tied_indices = np.where(probabilities == min_prob)[0]
-
-                if len(tied_indices) > 1:
-                    # Break tie using probability history
-                    history_probs = self.probability_history[tied_indices]
-                    least_contributing_index = tied_indices[np.argmin(history_probs)]
-                else:
-                    least_contributing_index = tied_indices[0]
-            else:
-                # Fall back to using history directly
-                probabilities = self.probability_history
-                least_contributing_index = np.argmin(probabilities)
+        if np.all(self.probability_history > 0.0):  #   and len(tied_indices) == 1:
+            least_contributing_index = np.argmin(self.probability_history)
 
             # === PRUNE CRITICS === #
             del self.extrinsic_critics[least_contributing_index]
@@ -141,9 +127,23 @@ class IGTPO_Learner(Base):
             # === SEND PRUNE SIGNAL TO INTRINSIC REWARD CLASS === #
             self.intrinsic_reward_fn.prune(least_contributing_index)
 
+            pruned = True
+        else:
+            pruned = False
+
+        return pruned
+
     def trim(self):
         if self.num_inner_updates > 2:
             self.num_inner_updates -= 1
+
+    def adaptive_N(self):
+        if np.any(self.probabilities > 0.0):
+            if self.num_inner_updates > 5:
+                self.num_inner_updates -= 1
+        else:
+            if self.num_inner_updates < 50:
+                self.num_inner_updates += 1
 
     def forward(self, state: np.ndarray, deterministic: bool = False):
         state = self.preprocess_state(state)
@@ -172,13 +172,14 @@ class IGTPO_Learner(Base):
         # === initialize the policy dict with outer-level policy === #
         for i in range(self.intrinsic_reward_fn.num_rewards):
             actor_idx = f"{i}_{0}"
-            policy_dict[actor_idx] = self.clone_actor(self.actor)
+            policy_dict[actor_idx] = deepcopy(self.actor)
 
-        # === sample for current outer-level policy === #
+        # === SAMPLE FOR INITIAL UPDATE === #
         init_batch, sample_time = inner_sampler.collect_samples(env, self.actor, seed)
+        self.actor.record_state_visitations(init_batch["states"], alpha=1.0)
         total_timesteps += init_batch["states"].shape[0]
 
-        # === iteration === #
+        # === UPDATE VIA GRADIENT CHAIN === #
         loss_dict_list = []
         self.probabilities = np.array(
             [0.0 for _ in range(self.intrinsic_reward_fn.num_rewards)]
@@ -205,7 +206,7 @@ class IGTPO_Learner(Base):
                         timesteps = batch["states"].shape[0]
                 else:  # prefix == "outer"
                     batch, sample_time = outer_sampler.collect_samples(env, actor, seed)
-                    self.record_state_visitations(batch["states"])
+                    actor.record_state_visitations(batch["states"], alpha=1.0)
                     timesteps = batch["states"].shape[0]
 
                 # save reward probability
@@ -250,11 +251,12 @@ class IGTPO_Learner(Base):
             outer_gradients.append(gradients)
 
         # Average across vectors
-        argmax_idx = np.argmax(self.probabilities)
-        most_contributing_index = self.contributing_indices[argmax_idx]
         if np.any(self.probabilities > 0.0):
+            argmax_idx = np.argmax(self.probabilities)
+            most_contributing_index = int(self.contributing_indices[argmax_idx])
             gradients = outer_gradients[argmax_idx]
         else:
+            most_contributing_index = -1
             outer_gradients_transposed = list(
                 zip(*outer_gradients)
             )  # Group by parameter
@@ -269,29 +271,28 @@ class IGTPO_Learner(Base):
             grads=gradients,
         )
 
-        # === Logging === #
-        intrinsic_avg_rewards_improvement = 0
+        # === COLLECT VISITATION MAPS === #
+        visitation_dict = {}
+        visitation_dict["visitation map (outer)"] = self.actor.state_visitation
         for i in range(self.intrinsic_reward_fn.num_rewards):
-            intrinsic_avg_rewards_improvement += (
-                self.final_avg_intrinsic_rewards[str(i)]
-                - self.init_avg_intrinsic_rewards[str(i)]
-            )
-        intrinsic_avg_rewards_improvement /= self.intrinsic_reward_fn.num_rewards
+            idx = f"{i}_{self.num_inner_updates}"
+            name = f"visitation map ({self.contributing_indices[i]})"
+            visitation_dict[name] = policy_dict[idx].state_visitation
 
+        # self.adaptive_N()
+
+        # === Logging === #
         loss_dict = self.average_dict_values(loss_dict_list)
         loss_dict[f"{self.name}/analytics/avg_extrinsic_rewards"] = init_batch[
             "rewards"
         ].mean()
-        loss_dict[f"{self.name}/analytics/avg_intrinsic_rewards_improvement"] = (
-            intrinsic_avg_rewards_improvement
-        )
         loss_dict[f"{self.name}/analytics/sample_time"] = total_sample_time
         loss_dict[f"{self.name}/analytics/update_time"] = total_update_time
         loss_dict[f"{self.name}/parameters/num vectors"] = (
             self.intrinsic_reward_fn.num_rewards
         )
         loss_dict[f"{self.name}/parameters/num_inner_updates"] = self.num_inner_updates
-        loss_dict[f"{self.name}/analytics/Contributing Option"] = int(
+        loss_dict[f"{self.name}/analytics/Contributing Option"] = (
             most_contributing_index
         )
         loss_dict[f"{self.name}/analytics/Backtrack_iter"] = backtrack_iter
@@ -300,7 +301,16 @@ class IGTPO_Learner(Base):
 
         loss_dict.update(self.intrinsic_reward_fn.loss_dict)
 
-        return loss_dict, total_timesteps
+        for i in range(self.intrinsic_reward_fn.num_rewards):
+            intrinsic_avg_rewards_improvement = (
+                self.final_avg_intrinsic_rewards[str(i)]
+                - self.init_avg_intrinsic_rewards[str(i)]
+            )
+            loss_dict[f"{self.name}/analytics/R_int_improvement ({i})"] = (
+                intrinsic_avg_rewards_improvement
+            )
+
+        return loss_dict, total_timesteps, visitation_dict
 
     def learn_model(self, actor: nn.Module, batch: dict, i: int, prefix: str):
         """Performs a single training step using PPO, incorporating all reference training steps."""
@@ -377,9 +387,10 @@ class IGTPO_Learner(Base):
                 intrinsic_critic_loss = avg_loss
 
         # 2. Learn actor
-        actor_clone = self.clone_actor(actor)  # clone for future update
+        actor_clone = deepcopy(actor)  # self.clone_actor()  # clone for future update
 
         # use the intrinsic reward gradient instead for exploration when
+        # if prefix == "outer" and self.probabilities[i] > 0.0:
         if prefix == "outer" and self.probabilities[i] > 0.0:
             advantages = extrinsic_advantages
         else:
@@ -396,7 +407,7 @@ class IGTPO_Learner(Base):
         )
 
         # 4. Total loss
-        if prefix == "outer" and self.probabilities[i] > 0.0:
+        if prefix == "outer":
             entropy_loss *= 0.0
 
         loss = actor_loss - entropy_loss
@@ -426,7 +437,7 @@ class IGTPO_Learner(Base):
             f"{self.name}/loss/intrinsic_critic_loss": intrinsic_critic_loss,
             f"{self.name}/loss/entropy_loss": entropy_loss.item(),
             f"{self.name}/grad/actor": actor_grad_norm.item(),
-            f"{self.name}/analytics/avg_intrinsic_rewards": torch.mean(
+            f"{self.name}/analytics/avg_intrinsic_rewards ({i})": torch.mean(
                 intrinsic_rewards
             ).item(),
         }
@@ -454,7 +465,7 @@ class IGTPO_Learner(Base):
         states: np.ndarray,
         grads: tuple[torch.Tensor],
         damping: float = 1e-1,
-        backtrack_iters: int = 10,
+        backtrack_iters: int = 15,
         backtrack_coeff: float = 0.8,
     ):
         states = self.preprocess_state(states)

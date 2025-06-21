@@ -52,7 +52,7 @@ class HRL(nn.Module):
             action_dim=int(self.args.num_options + 1),
             episode_len=self.env.max_steps,
             batch_size=int(self.args.minibatch_size * self.args.num_minibatch),
-            max_option_len=5,
+            max_option_len=10,
             gamma=self.args.gamma,
             verbose=False,
         )
@@ -110,12 +110,12 @@ class HRL(nn.Module):
                 eps_clip=self.args.eps_clip,
                 entropy_scaler=self.args.entropy_scaler,
                 target_kl=self.args.target_kl,
-                gamma=1.0,  # gamma for option is 1 to find maxima
+                gamma=1.0,  # self.args.gamma,  # 1.0,  # gamma for option is 1 to find maxima
                 gae=self.args.gae,
                 K=self.args.K_epochs,
                 device=self.args.device,
             )
-            policy.name = "EigenOptionPolicy"
+            policy.name = "HRL_options"
             self.policies.append(policy)
 
         uniform_random_policy = UniformRandom(

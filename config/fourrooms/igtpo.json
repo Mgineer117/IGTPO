@@ -1,14 +1,12 @@
 {
-    "extractor_epochs": 10000,
     "timesteps": 3e6,
-    "extractor_type": "CNN",
     "feature_dim": 32,
     "eps_clip": 0.2,
     "K_epochs": 5,
-    "num_inner_updates": 15,
+    "num_inner_updates": 5,
     "target_kl": 0.03,
-    "num_options": 8,
+    "num_options": 6,
     "num_minibatch": 4,
-    "minibatch_size": 1024,
-    "batch_size": 4096
+    "minibatch_size": 256,
+    "batch_size": 1024
 }

@@ -87,6 +87,7 @@ class EigenOptionTrainer:
         self.last_return_std = deque(maxlen=5)
 
         # Train loop
+        eval_idx = 0
         total_tiemesteps = int(self.timesteps * self.num_vectors + self.init_timesteps)
         with tqdm(
             total=total_tiemesteps,
@@ -108,12 +109,11 @@ class EigenOptionTrainer:
                         env=self.env,
                         policy=policy,
                         seed=self.seed,
-                        random_init_pos=True,
+                        # random_init_pos=True,
                     )
 
-                    # compute the intrinsic rewards
-
                     states, next_states = batch["states"], batch["next_states"]
+                    policy.record_state_visitations(states)
                     states = torch.from_numpy(states).to(policy.device)
                     next_states = torch.from_numpy(next_states).to(policy.device)
 
@@ -151,6 +151,44 @@ class EigenOptionTrainer:
                     )  # Convert to hours
 
                     self.write_log(loss_dict, step=current_step)
+
+                    #### EVALUATIONS ####
+                    if current_step >= self.eval_interval * (eval_idx + 1):
+                        ### Eval Loop
+                        policy.eval()
+                        eval_idx += 1
+
+                        eval_dict, running_video = self.evaluate(policy)
+
+                        # Manual logging
+                        if policy.state_visitation is not None:
+                            visitation_map = policy.state_visitation
+                            vmin, vmax = visitation_map.min(), visitation_map.max()
+                            visitation_map = (visitation_map - vmin) / (
+                                vmax - vmin + 1e-8
+                            )
+                            visitation_map = self.visitation_to_rgb(visitation_map)
+                            self.write_image(
+                                image=visitation_map,
+                                step=current_step,
+                                logdir="Image",
+                                name=f"visitation map ({option_idx})",
+                            )
+
+                        self.write_log(eval_dict, step=current_step, eval_log=True)
+                        self.write_video(
+                            running_video,
+                            step=current_step,
+                            logdir=f"videos",
+                            name="running_video",
+                        )
+
+                        self.last_return_mean.append(eval_dict[f"eval/return_mean"])
+                        self.last_return_std.append(eval_dict[f"eval/return_std"])
+
+                        self.save_model(
+                            current_step, policy, f"{option_idx}_option_policy"
+                        )
 
         # assign trained option policies
         eval_idx = 0
@@ -198,7 +236,7 @@ class EigenOptionTrainer:
                     self.hl_policy.eval()
                     eval_idx += 1
 
-                    eval_dict, running_video = self.evaluate()
+                    eval_dict, running_video = self.hl_evaluate()
 
                     # Manual logging
                     if self.hl_policy.state_visitation is not None:
@@ -224,7 +262,7 @@ class EigenOptionTrainer:
                     self.last_return_mean.append(eval_dict[f"eval/return_mean"])
                     self.last_return_std.append(eval_dict[f"eval/return_std"])
 
-                    self.save_model(current_step)
+                    self.save_model(current_step, self.hl_policy, "hl_policy")
 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -235,7 +273,50 @@ class EigenOptionTrainer:
 
         return current_step
 
-    def evaluate(self):
+    def evaluate(self, policy: nn.Module):
+        ep_buffer = []
+        image_array = []
+        for num_episodes in range(self.eval_num):
+            ep_reward = []
+
+            # Env initialization
+            state, infos = self.env.reset(seed=self.seed)
+
+            for t in range(self.env.max_steps):
+                with torch.no_grad():
+                    a, _ = policy(state, deterministic=True)
+                    a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
+
+                if num_episodes == 0 and self.rendering:
+                    image = self.env.render()
+                    image_array.append(image)
+
+                next_state, rew, term, trunc, infos = self.env.step(a)
+                done = term or trunc
+
+                state = next_state
+                ep_reward.append(rew)
+
+                if done:
+                    ep_buffer.append(
+                        {
+                            "return": self.discounted_return(ep_reward, policy.gamma),
+                        }
+                    )
+
+                    break
+
+        return_list = [ep_info["return"] for ep_info in ep_buffer]
+        return_mean, return_std = np.mean(return_list), np.std(return_list)
+
+        eval_dict = {
+            f"eval/return_mean": return_mean,
+            f"eval/return_std": return_std,
+        }
+
+        return eval_dict, image_array
+
+    def hl_evaluate(self):
         ep_buffer = []
         image_array = []
         for num_episodes in range(self.eval_num):
@@ -330,12 +411,10 @@ class EigenOptionTrainer:
             video_path = os.path.join(logdir, name)
             self.logger.write_videos(step=step, images=tensor, logdir=video_path)
 
-    def save_model(self, e: int):
+    def save_model(self, e: int, model: nn.Module, name: str):
         ### save checkpoint
-        name = f"model_{e}.pth"
+        name = f"{name}_{e}.pth"
         path = os.path.join(self.logger.checkpoint_dir, name)
-
-        model = self.hl_policy
 
         if model is not None:
             model = deepcopy(model).to("cpu")

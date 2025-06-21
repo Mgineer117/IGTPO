@@ -137,8 +137,11 @@ class Base(nn.Module):
         flat_grad = torch.cat([g.view(-1) for g in grads])
         return flat_grad
 
-    def record_state_visitations(self, states: np.ndarray | torch.Tensor):
-        alpha = 0.01
+    def record_state_visitations(
+        self, states: np.ndarray | torch.Tensor, alpha: float | None = None
+    ):
+        if alpha is None:
+            alpha = 0.01
 
         wall_idx = 2
         agent_idx = 10
@@ -147,7 +150,17 @@ class Base(nn.Module):
         if isinstance(states, torch.Tensor):
             states = states.cpu().numpy()
 
-        if self.actor.is_discrete:
+        if hasattr(self, "is_discrete"):
+            is_discrete = self.is_discrete
+        elif hasattr(self, "actor"):
+            is_discrete = self.actor.is_discrete
+
+        # if hasattr(self, "grid"):
+        #     grid = self.grid
+        # elif hasattr(self, "actor"):
+        #     is_discrete = self.actor.is_discrete
+
+        if is_discrete:
             if self.state_visitation is None:
                 self.state_visitation = np.zeros_like(self.grid, dtype=np.float32)
 
