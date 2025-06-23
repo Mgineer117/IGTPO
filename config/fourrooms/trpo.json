@@ -1,5 +1,5 @@
 {
-    "timesteps": 1e6,
-    "target_kl": 0.03,
+    "timesteps": 5e6,
+    "target_kl": 0.01,
     "batch_size": 1024
 }
