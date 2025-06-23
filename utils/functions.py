@@ -17,7 +17,7 @@ EPI_LENGTH = {
     "fourrooms-v0": 100,
     "maze-v0": 300,
     "maze-v1": 100,
-    "maze-v2": 300,
+    "maze-v2": 200,
     "ninerooms-v0": 100,
     "ctf-v0": 100,
     "pointmaze-medium": 200,
