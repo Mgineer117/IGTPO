@@ -386,8 +386,8 @@ class IGTPO_Learner(Base):
             # advantages = (
             #     fraction * extrinsic_advantages + (1 - fraction) * intrinsic_advantages
             # )
-            advantages = (1 - fraction) * intrinsic_advantages + extrinsic_advantages
-            # advantages = extrinsic_advantages
+            # advantages = (1 - fraction) * intrinsic_advantages + extrinsic_advantages
+            advantages = extrinsic_advantages
         else:
             advantages = intrinsic_advantages
 
