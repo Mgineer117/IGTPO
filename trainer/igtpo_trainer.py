@@ -67,7 +67,7 @@ class IGTPOTrainer:
 
         self.log_interval = log_interval
         self.prune_interval = int(
-            (self.timesteps / 2) / self.policy.intrinsic_reward_fn.num_rewards
+            (self.timesteps / 3) / self.policy.intrinsic_reward_fn.num_rewards
         )
         self.trim_interval = int(self.timesteps / (self.policy.num_inner_updates - 3))
         self.eval_interval = int(self.timesteps / self.log_interval)
@@ -97,27 +97,31 @@ class IGTPOTrainer:
             desc=f"{self.policy.name} Training (Timesteps)",
         ) as pbar:
             while pbar.n < self.timesteps + self.init_timesteps:
+                current_step = pbar.n
+                fraction = current_step / (self.timesteps + self.init_timesteps)
+
                 loss_dict, timesteps, visitation_dict = self.policy.learn(
-                    self.env, self.outer_sampler, self.inner_sampler, self.seed
+                    self.env,
+                    self.outer_sampler,
+                    self.inner_sampler,
+                    self.seed,
+                    fraction,
                 )
                 # print(loss_dict)
                 current_step = pbar.n + timesteps
 
                 # === Update progress === #
-                self.policy.probabilities  # (n,) ndarray
+                # self.policy.probabilities  # (n,) ndarray
                 self.write_log(loss_dict, current_step)
                 pbar.update(timesteps)
 
                 # === reduce igtpo lr === #
-                # self.policy.lr_scheduler(
-                #     current_step / (self.timesteps + self.init_timesteps)
-                # )
+                self.policy.lr_scheduler(fraction)
 
                 # === PRUNE TWIG === #
-                if current_step > self.prune_interval * (prune_idx + 1):
-                    pruned = self.policy.prune()
-                    if pruned:
-                        prune_idx += 1
+                # if current_step > self.prune_interval * (prune_idx + 1):
+                #     self.policy.prune()
+                #     prune_idx += 1
 
                 # === TRIM TWIG === #
                 # if current_step > self.trim_interval * (trim_idx + 1):
@@ -133,10 +137,14 @@ class IGTPOTrainer:
                     eval_dict, running_video = self.evaluate()
 
                     # Manual logging
+                    probability_history = self.policy.probability_history
+                    probability_history = (
+                        probability_history - probability_history.min()
+                    ) / (probability_history.max() - probability_history.min() + 1e-8)
                     fig, ax = plt.subplots(figsize=(8, 6))
                     ax.stem(
                         np.array([int(x) for x in self.policy.contributing_indices]),
-                        self.policy.probability_history,
+                        probability_history,
                     )
 
                     # Convert figure to a NumPy array

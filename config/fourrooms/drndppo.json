@@ -1,5 +1,5 @@
 {
-    "timesteps": 3e6,
+    "timesteps": 1e6,
     "eps_clip": 0.2,
     "K_epochs": 5,
     "target_kl": 0.03,

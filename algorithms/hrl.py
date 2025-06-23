@@ -110,7 +110,7 @@ class HRL(nn.Module):
                 eps_clip=self.args.eps_clip,
                 entropy_scaler=self.args.entropy_scaler,
                 target_kl=self.args.target_kl,
-                gamma=1.0,  # self.args.gamma,  # 1.0,  # gamma for option is 1 to find maxima
+                gamma=self.args.gamma,  # 1.0,  # gamma for option is 1 to find maxima
                 gae=self.args.gae,
                 K=self.args.K_epochs,
                 device=self.args.device,
