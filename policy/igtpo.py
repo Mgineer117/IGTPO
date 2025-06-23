@@ -190,7 +190,8 @@ class IGTPO_Learner(Base):
                     batch, sample_time = outer_sampler.collect_samples(env, actor, seed)
                     actor.record_state_visitations(batch["states"], alpha=1.0)
                     timesteps = batch["states"].shape[0]
-                beta = 0.9
+
+                beta = 0.95
                 self.probability_history[i] = (
                     beta * self.probability_history[i]
                     + (1 - beta) * batch["rewards"].mean()
@@ -382,7 +383,7 @@ class IGTPO_Learner(Base):
         # 2. Learn actor
         actor_clone = deepcopy(actor)  # self.clone_actor()  # clone for future update
 
-        if prefix == "outer":
+        if prefix == "outer":  #  and np.any(self.probability_history > 1e-6):
             # advantages = (
             #     fraction * extrinsic_advantages + (1 - fraction) * intrinsic_advantages
             # )

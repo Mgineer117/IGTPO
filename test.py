@@ -1,6 +1,6 @@
 import numpy as np
 
-probability_history = np.array([0.23, 20.75, 10.5])
+probability_history = np.array([0.000000000000004, 0.0, 0.00000000000005])
 # probability_history = np.array([0.23, 0.75, 0.5])
 # probability_history = np.array([0.00023, 0.00075, 0.0005])
 
