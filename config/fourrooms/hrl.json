@@ -1,11 +1,11 @@
 {
-    "hl_timesteps": 2e6,
-    "timesteps": 5e5,
+    "hl_timesteps": 4e6,
+    "timesteps": 1e6,
     "feature_dim": 32,
     "eps_clip": 0.2,
     "K_epochs": 5,
     "target_kl": 0.01,
     "num_options": 6,
     "num_minibatch": 4,
-    "minibatch_size": 256
+    "minibatch_size": 512
 }

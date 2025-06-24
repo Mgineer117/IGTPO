@@ -1,5 +1,5 @@
 {
-    "timesteps": 1e7,
+    "timesteps": 3e7,
     "feature_dim": 32,
     "eps_clip": 0.2,
     "K_epochs": 5,
@@ -7,7 +7,7 @@
     "target_kl": 0.01,
     "num_options": 6,
     "num_minibatch": 4,
-    "minibatch_size": 1024,
-    "batch_size": 4096,
+    "minibatch_size": 2048,
+    "batch_size": 8192,
     "intrinsic_reward_mode": "all-drnd"
 }
