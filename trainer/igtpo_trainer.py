@@ -137,14 +137,15 @@ class IGTPOTrainer:
                     eval_dict, running_video = self.evaluate()
 
                     # Manual logging
-                    probability_history = self.policy.probability_history
-                    probability_history = (
-                        probability_history - probability_history.min()
-                    ) / (probability_history.max() - probability_history.min() + 1e-8)
+                    weights = self.policy.probability_history
+                    weights = (weights - weights.min()) / (
+                        weights.max() - weights.min() + 1e-8
+                    )
+                    weights = weights / (weights.sum() + 1e-8)
                     fig, ax = plt.subplots(figsize=(8, 6))
                     ax.stem(
                         np.array([int(x) for x in self.policy.contributing_indices]),
-                        probability_history,
+                        weights,
                     )
 
                     # Convert figure to a NumPy array

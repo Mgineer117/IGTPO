@@ -88,7 +88,7 @@ class IGTPO_Learner(Base):
 
         #
         self.steps = 0
-        self.epsilon = 0.2
+        self.epsilon = 0.3
         self.contributing_indices = [
             str(i) for i in range(self.intrinsic_reward_fn.num_rewards)
         ]
@@ -237,13 +237,14 @@ class IGTPO_Learner(Base):
         # Average across vectors
         most_contributing_index = np.argmax(self.probability_history)
         outer_gradients_transposed = list(zip(*outer_gradients))  # Group by parameter
+        # gradients = outer_gradients[most_contributing_index]
 
         prob = np.random.rand()
         epsilon = self.epsilon * (1 - fraction)
 
         if prob < epsilon:
             # Uniform exploration
-            # weights = np.ones_like(weights)
+            # weights = np.ones_like(self.probability_history)
             # Random exploration
             weights = np.random.rand(len(self.probability_history))
             weights = weights / (weights.sum() + 1e-8)
@@ -410,8 +411,7 @@ class IGTPO_Learner(Base):
 
         # 5. Compute gradients (example)
         gradients = torch.autograd.grad(loss, actor.parameters(), create_graph=True)
-        # if prefix == "inner":
-        # gradients = self.clip_grad_norm(gradients, max_norm=0.5)
+        gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
         # 6. Manual SGD update (structured, not flat)
         with torch.no_grad():
