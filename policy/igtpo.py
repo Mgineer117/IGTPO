@@ -346,7 +346,7 @@ class IGTPO_Learner(Base):
                     intrinsic_rewards,
                     terminals,
                     intrinsic_values,
-                    gamma=self.gamma,
+                    gamma=1.0,
                     gae=self.gae,
                 )
 
