@@ -31,7 +31,7 @@ def compare_weights(policy1, policy2):
 
 
 # model-free policy trainer
-class EigenOptionTrainer:
+class HRLTrainer:
     def __init__(
         self,
         env: gym.Env,

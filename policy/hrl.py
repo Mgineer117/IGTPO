@@ -13,7 +13,7 @@ from utils.rl import estimate_advantages
 # from models.layers.ppo_networks import PPO_Policy, PPO_Critic
 
 
-class EigenOption_Learner(Base):
+class HRL_Learner(Base):
     def __init__(
         self,
         actor: PPO_Actor,
@@ -32,7 +32,7 @@ class EigenOption_Learner(Base):
         K: int = 5,
         device: str = "cpu",
     ):
-        super(EigenOption_Learner, self).__init__()
+        super().__init__(device=device)
 
         # constants
         self.name = "HRL"

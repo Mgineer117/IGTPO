@@ -8,11 +8,11 @@ from sklearn.decomposition import PCA
 
 
 class Base(nn.Module):
-    def __init__(self):
+    def __init__(self, device):
         super(Base, self).__init__()
 
         self.dtype = torch.float32
-        self.device = torch.device("cpu")
+        self.device = device
 
         # utils
         self.l1_loss = F.l1_loss

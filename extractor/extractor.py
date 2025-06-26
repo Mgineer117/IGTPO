@@ -12,7 +12,7 @@ from policy.layers.base import Base
 
 class DummyExtractor(Base):
     def __init__(self, indices: list):
-        super(DummyExtractor, self).__init__()
+        super().__init__()
 
         ### constants
         self.indices = indices
@@ -49,7 +49,7 @@ class ALLO(Base):
         batch_size: int,
         device: str = "cpu",
     ):
-        super(ALLO, self).__init__()
+        super().__init__(device=device)
         self.name = "ALLO"
         self.d = network.feature_dim
         self.positional_indices = positional_indices

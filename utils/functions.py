@@ -22,6 +22,7 @@ EPI_LENGTH = {
     "ctf-v0": 100,
     "pointmaze-medium": 200,
     "fetch-reach": 50,
+    "fetch-reachdense": 50,
 }
 
 

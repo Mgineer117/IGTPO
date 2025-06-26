@@ -7,11 +7,7 @@ import torch.nn as nn
 
 from policy.igtpo import IGTPO_Learner
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
-from policy.ppo import PPO_Learner
-from policy.value_functions import Critic_Learner, Critics_Learner
-from trainer.base_trainer import Trainer
 from trainer.igtpo_trainer import IGTPOTrainer
-from trainer.metaigtpo_trainer import MetaIGTPOTrainer
 from utils.intrinsic_rewards import IntrinsicRewardFunctions
 from utils.sampler import OnlineSampler
 

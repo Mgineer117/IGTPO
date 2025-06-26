@@ -151,7 +151,7 @@ class OnlineSampler(Base):
                 if worker_memories[pid] is None:
                     worker_memories[pid] = data
                     collected += 1
-            except queue.Empty:
+            except queue.empty:
                 print(f"[Warning] Queue timeout. Retrying... ({collected}/{expected})")
 
         start_time = time.time()

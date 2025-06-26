@@ -4,11 +4,11 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
-from policy.eigenoption import EigenOption_Learner
+from policy.hrl import HRL_Learner
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
 from policy.ppo import PPO_Learner
 from policy.uniform_random import UniformRandom
-from trainer.eigenoption_trainer import EigenOptionTrainer
+from trainer.hrl_trainer import HRLTrainer
 from utils.intrinsic_rewards import IntrinsicRewardFunctions
 from utils.sampler import HLSampler, OnlineSampler
 
@@ -65,7 +65,7 @@ class HRL(nn.Module):
             verbose=False,
         )
 
-        trainer = EigenOptionTrainer(
+        trainer = HRLTrainer(
             env=self.env,
             hl_policy=self.hl_policy,
             policies=self.policies,
@@ -136,7 +136,7 @@ class HRL(nn.Module):
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        self.hl_policy = EigenOption_Learner(
+        self.hl_policy = HRL_Learner(
             actor=actor,
             critic=critic,
             nupdates=self.args.hl_nupdates,

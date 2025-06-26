@@ -15,7 +15,7 @@ from utils.sampler import OnlineSampler
 
 
 # model-free policy trainer
-class Trainer:
+class OnPolicyTrainer:
     def __init__(
         self,
         env: gym.Env,
@@ -46,7 +46,7 @@ class Trainer:
         self.eval_interval = int(self.timesteps / self.log_interval)
 
         # initialize the essential training components
-        self.last_min_return_mean = 1e10
+        self.last_max_return_mean = 1e10
         self.last_min_return_std = 1e10
 
         self.rendering = rendering
@@ -77,17 +77,10 @@ class Trainer:
                 # Calculate expected remaining time
                 pbar.update(timesteps)
 
-                elapsed_time = time.time() - start_time
-                avg_time_per_iter = elapsed_time / step
-                remaining_time = avg_time_per_iter * (self.timesteps - step)
-
                 # Update environment steps and calculate time metrics
                 loss_dict[f"{self.policy.name}/analytics/timesteps"] = step + timesteps
                 loss_dict[f"{self.policy.name}/analytics/sample_time"] = sample_time
                 loss_dict[f"{self.policy.name}/analytics/update_time"] = update_time
-                loss_dict[f"{self.policy.name}/analytics/remaining_time (hr)"] = (
-                    remaining_time / 3600
-                )  # Convert to hours
 
                 self.write_log(loss_dict, step=step)
 
@@ -213,14 +206,14 @@ class Trainer:
 
             # save the best model
             if (
-                np.mean(self.last_return_mean) < self.last_min_return_mean
+                np.mean(self.last_return_mean) >= self.last_max_return_mean
                 and np.mean(self.last_return_std) <= self.last_min_return_std
             ):
                 name = f"best_model.pth"
                 path = os.path.join(self.logger.log_dir, name)
                 torch.save(model.state_dict(), path)
 
-                self.last_min_return_mean = np.mean(self.last_return_mean)
+                self.last_max_return_mean = np.mean(self.last_return_mean)
                 self.last_min_return_std = np.mean(self.last_return_std)
         else:
             raise ValueError("Error: Model is not identifiable!!!")

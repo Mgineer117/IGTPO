@@ -32,14 +32,13 @@ class DRNDPPO_Learner(Base):
         gamma: float = 0.99,
         gae: float = 0.9,
         K: int = 5,
-        ext_reward_scaler: float = 2.0,
         int_reward_scaler: float = 1.0,
         drnd_loss_scaler: float = 1.0,
         update_proportion: float = 0.25,
         alpha: float = 0.9,
         device: str = "cpu",
     ):
-        super(DRNDPPO_Learner, self).__init__()
+        super().__init__(device=device)
 
         # constants
         self.name = "DRND_PPO"
@@ -59,7 +58,6 @@ class DRNDPPO_Learner(Base):
         self.l2_reg = l2_reg
         self.target_kl = target_kl
         self.eps_clip = eps_clip
-        self.ext_reward_scaler = ext_reward_scaler
         self.int_reward_scaler = int_reward_scaler
         self.drnd_loss_scaler = drnd_loss_scaler
         self.update_proportion = update_proportion
@@ -180,10 +178,7 @@ class DRNDPPO_Learner(Base):
                 gae=self.gae,
             )
 
-        advantages = (
-            self.ext_reward_scaler * ext_advantages
-            + self.int_reward_scaler * int_advantages
-        )
+        advantages = ext_advantages + self.int_reward_scaler * int_advantages
 
         # Mini-batch training
         batch_size = states.size(0)
@@ -265,6 +260,8 @@ class DRNDPPO_Learner(Base):
                 break
 
         self.lr_scheduler.step()
+        if self.nupdates is not None:
+            self.int_reward_scaler = 1 - (self.lr_scheduler.last_epoch / self.nupdates)
 
         # Logging
         loss_dict = {

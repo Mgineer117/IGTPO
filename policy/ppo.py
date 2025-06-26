@@ -28,7 +28,7 @@ class PPO_Learner(Base):
         K: int = 5,
         device=torch.device("cpu"),
     ):
-        super(PPO_Learner, self).__init__()
+        super().__init__(device=device)
 
         # constants
         self.name = "PPO"

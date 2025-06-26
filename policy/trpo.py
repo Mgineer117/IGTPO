@@ -35,7 +35,7 @@ class TRPO_Learner(Base):
         gae: float = 0.9,
         device: str = "cpu",
     ):
-        super(TRPO_Learner, self).__init__()
+        super().__init__(device=device)
 
         # constants
         self.name = "TRPO"

@@ -18,7 +18,7 @@ class PPO_Actor(Base):
         activation: nn.Module = nn.Tanh(),
         device=torch.device("cpu"),
     ):
-        super(PPO_Actor, self).__init__()
+        super().__init__(device=device)
 
         self.state_dim = np.prod(input_dim)
         self.hidden_dim = hidden_dim
@@ -137,10 +137,6 @@ class PPO_Actor(Base):
 
 
 class PPO_Critic(nn.Module):
-    """
-    Psi Advantage Function: Psi(s,a) - (1/|A|)SUM_a' Psi(s, a')
-    """
-
     def __init__(
         self, input_dim: int, hidden_dim: list, activation: nn.Module = nn.Tanh()
     ):

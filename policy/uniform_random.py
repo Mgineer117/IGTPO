@@ -19,7 +19,7 @@ class UniformRandom(Base):
         is_discrete: bool,
         device: str = "cpu",
     ):
-        super(UniformRandom, self).__init__()
+        super().__init__(device=device)
 
         # constants
         self.name = "UniformRandom"

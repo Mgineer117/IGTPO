@@ -15,7 +15,7 @@ class DRNDModel(Base):
     def __init__(
         self, input_dim: int, output_dim: int, num: int, device=torch.device("cpu")
     ):
-        super(DRNDModel, self).__init__()
+        super().__init__(device=device)
 
         self.input_dim = np.prod(input_dim)
         self.output_dim = np.prod(output_dim)

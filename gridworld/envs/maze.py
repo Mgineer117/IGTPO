@@ -75,7 +75,7 @@ class Maze(MultiGridEnv):
 
         # Define positions for goals and agents
         self.goal_positions = [(15, 1), (15, 15), (7, 3)]
-        self.agent_positions = [(13, 1), (2, 2), (1, 5)]
+        self.agent_positions = [(13, 1), (2, 2), (5, 9)]
 
         self.num_random_agent = num_random_agent
         self.random_agent_positions = [

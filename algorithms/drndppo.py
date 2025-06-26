@@ -4,7 +4,7 @@ import torch.nn as nn
 from policy.drndppo import DRNDPPO_Learner
 from policy.layers.drnd_networks import DRNDModel
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
-from trainer.base_trainer import Trainer
+from trainer.onpolicy_trainer import OnPolicyTrainer
 from utils.sampler import OnlineSampler
 
 
@@ -34,7 +34,7 @@ class DRND_PPO_Algorithm(nn.Module):
             batch_size=int(self.args.minibatch_size * self.args.num_minibatch),
         )
 
-        trainer = Trainer(
+        trainer = OnPolicyTrainer(
             env=self.env,
             policy=self.policy,
             sampler=sampler,
