@@ -28,7 +28,7 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablati
 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.1 --intrinsic-reward-mode allo & 
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.01 --intrinsic-reward-mode allo & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.0001 --intrinsic-reward-mode allo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.001 --intrinsic-reward-mode allo & 
 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --target-kl 0.03 --intrinsic-reward-mode allo &
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --target-kl 0.05 --intrinsic-reward-mode allo &
