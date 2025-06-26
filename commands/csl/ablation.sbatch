@@ -3,7 +3,7 @@
 #SBATCH --account=huytran1-ic
 #SBATCH --partition=csl
 #SBATCH --nodes=1
-#SBATCH --ntasks=10
+#SBATCH --ntasks=14
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --time=7-00:00:00
@@ -21,18 +21,23 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 5 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 10 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 15 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 20 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --num-inner-updates 5 --intrinsic-reward-mode allo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --num-inner-updates 10 --intrinsic-reward-mode allo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --num-inner-updates 15 --intrinsic-reward-mode allo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --num-inner-updates 20 --intrinsic-reward-mode allo & 
 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.01 & 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.0001 & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.1 --intrinsic-reward-mode allo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.01 --intrinsic-reward-mode allo & 
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.001 --intrinsic-reward-mode allo & 
 
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.03 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.05 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.07 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v0 --project igtpo-ablation --algo-name igtpo --target-kl 0.09 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --target-kl 0.03 --intrinsic-reward-mode allo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --target-kl 0.05 --intrinsic-reward-mode allo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --target-kl 0.07 --intrinsic-reward-mode allo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --target-kl 0.09 --intrinsic-reward-mode allo &
+
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --entropy-scaler 0.1 --intrinsic-reward-mode allo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --entropy-scaler 0.01 --intrinsic-reward-mode allo &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name maze-v2 --project igtpo-ablation --algo-name igtpo --entropy-scaler 0.0001 --intrinsic-reward-mode allo &
 
 # === Wait for all background jobs to finish ===
 wait
