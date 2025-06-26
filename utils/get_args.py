@@ -128,7 +128,7 @@ def get_args():
         help="Lower bound of the eigenvalue of the dual metric.",
     )
     parser.add_argument(
-        "--entropy-scaler", type=float, default=1e-4, help="Base learning rate."
+        "--entropy-scaler", type=float, default=1e-3, help="Base learning rate."
     )
     parser.add_argument(
         "--intrinsic-reward-mode",
