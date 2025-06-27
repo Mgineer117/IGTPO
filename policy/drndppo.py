@@ -266,7 +266,9 @@ class DRNDPPO_Learner(Base):
 
         self.lr_scheduler.step()
         if self.nupdates is not None:
-            self.int_reward_scaler = 1 - (self.lr_scheduler.last_epoch / self.nupdates)
+            self.int_reward_scaler = 1 - np.clip(
+                2 * (self.lr_scheduler.last_epoch / self.nupdates), 0.0, 1.0
+            )
 
         # Logging
         loss_dict = {

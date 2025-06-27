@@ -152,44 +152,6 @@ class HRLTrainer:
 
                     self.write_log(loss_dict, step=current_step)
 
-                    #### EVALUATIONS ####
-                    if current_step >= self.eval_interval * (eval_idx + 1):
-                        ### Eval Loop
-                        policy.eval()
-                        eval_idx += 1
-
-                        eval_dict, running_video = self.evaluate(policy)
-
-                        # Manual logging
-                        if policy.state_visitation is not None:
-                            visitation_map = policy.state_visitation
-                            vmin, vmax = visitation_map.min(), visitation_map.max()
-                            visitation_map = (visitation_map - vmin) / (
-                                vmax - vmin + 1e-8
-                            )
-                            visitation_map = self.visitation_to_rgb(visitation_map)
-                            self.write_image(
-                                image=visitation_map,
-                                step=current_step,
-                                logdir="Image",
-                                name=f"visitation map ({option_idx})",
-                            )
-
-                        self.write_log(eval_dict, step=current_step, eval_log=True)
-                        self.write_video(
-                            running_video,
-                            step=current_step,
-                            logdir=f"videos",
-                            name="running_video",
-                        )
-
-                        self.last_return_mean.append(eval_dict[f"eval/return_mean"])
-                        self.last_return_std.append(eval_dict[f"eval/return_std"])
-
-                        self.save_model(
-                            current_step, policy, f"{option_idx}_option_policy"
-                        )
-
         # assign trained option policies
         eval_idx = 0
         init_timesteps = current_step
