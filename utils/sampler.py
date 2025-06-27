@@ -2,6 +2,7 @@ import random
 import time
 from datetime import date
 from math import ceil, floor
+from queue import Empty
 
 import numpy as np
 import torch
@@ -147,11 +148,11 @@ class OnlineSampler(Base):
         collected = 0
         while collected < expected:
             try:
-                pid, data = queue.get(timeout=60)
+                pid, data = queue.get(timeout=300)
                 if worker_memories[pid] is None:
                     worker_memories[pid] = data
                     collected += 1
-            except queue.empty:
+            except Empty:
                 print(f"[Warning] Queue timeout. Retrying... ({collected}/{expected})")
 
         start_time = time.time()
@@ -160,8 +161,6 @@ class OnlineSampler(Base):
             if p.is_alive():
                 p.terminate()
                 p.join()  # Force cleanup
-            # if p.exitcode != 0:
-            #     print(f"[Error] Process {p.pid} exited with code {p.exitcode}")
 
         # ✅ Merge memory
         memory = {}
