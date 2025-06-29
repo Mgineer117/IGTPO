@@ -1,0 +1,6 @@
+nohup python3 main.py --env-name pointmaze-medium --project exp --algo-name ppo & 
+nohup python3 main.py --env-name pointmaze-medium --project exp --algo-name trpo & 
+nohup python3 main.py --env-name pointmaze-medium --project exp --algo-name psne & 
+nohup python3 main.py --env-name pointmaze-medium --project exp --algo-name drndppo & 
+nohup python3 main.py --env-name pointmaze-medium --project exp --algo-name hrl & 
+nohup python3 main.py --env-name pointmaze-medium --project exp --algo-name igtpo & 

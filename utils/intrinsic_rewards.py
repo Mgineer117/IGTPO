@@ -14,10 +14,12 @@ class IntrinsicRewardFunctions(nn.Module):
         super(IntrinsicRewardFunctions, self).__init__()
 
         # === Parameter saving === #
-        self.episode_len_for_sampling = 200_000
+        self.episode_len_for_sampling = 250_000
         self.num_trials = 10
 
-        self.extractor_env = call_env(deepcopy(args), self.episode_len_for_sampling)
+        self.extractor_env = call_env(
+            deepcopy(args), self.episode_len_for_sampling, random_spawn=True
+        )
         self.logger = logger
         self.writer = writer
         self.args = args

@@ -1,12 +1,12 @@
 {
-    "timesteps": 2.5e7,
+    "timesteps": 5e7,
     "eps_clip": 0.2,
     "K_epochs": 5,
-    "num_inner_updates": 20,
+    "num_inner_updates": 10,
     "target_kl": 0.01,
     "num_options": 4,
     "num_minibatch": 4,
-    "minibatch_size": 2048,
-    "batch_size": 8192,
-    "intrinsic_reward_mode": "all-drnd"
+    "minibatch_size": 4096,
+    "batch_size": 16384,
+    "intrinsic_reward_mode": "allo"
 }

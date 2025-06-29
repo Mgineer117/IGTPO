@@ -4,5 +4,5 @@
     "K_epochs": 5,
     "target_kl": 0.01,
     "num_minibatch": 4,
-    "minibatch_size": 3072
+    "minibatch_size": 2048
 }

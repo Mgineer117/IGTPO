@@ -41,7 +41,7 @@ def temp_seed(seed, pid):
     random.seed(seed + pid + rand_int)
 
 
-def call_env(args, episode_len: int | None = None):
+def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
     """
     Call the environment based on the given name.
     """
@@ -155,13 +155,24 @@ def call_env(args, episode_len: int | None = None):
         gym.register_envs(gymnasium_robotics)
 
         if version == "medium":
-            example_map = [
-                [1, 1, 1, 1, 1, 1],
-                [1, "r", 1, "g", 0, 1],
-                [1, 0, 1, 1, 0, 1],
-                [1, 0, 0, 0, 0, 1],
-                [1, 1, 1, 1, 1, 1],
-            ]
+            if random_spawn:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "c", 1, "c", "c", 1],
+                    [1, "c", 1, 1, "c", 1],
+                    [1, "c", "c", "c", "c", 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = True
+            else:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "r", 1, "g", 0, 1],
+                    [1, 0, 1, 1, 0, 1],
+                    [1, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = False
         elif version == "large":
             pass
         else:
@@ -171,7 +182,7 @@ def call_env(args, episode_len: int | None = None):
             "PointMaze_UMaze-v3",
             maze_map=example_map,
             max_episode_steps=max_steps,
-            continuing_task=False,
+            continuing_task=continuing_task,
             render_mode="rgb_array",
         )
 

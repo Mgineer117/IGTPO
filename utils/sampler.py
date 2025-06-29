@@ -234,6 +234,7 @@ class OnlineSampler(Base):
                 if done:
                     # clear log
                     current_step += t + 1
+                    print(t)
                     break
 
                 state = next_state

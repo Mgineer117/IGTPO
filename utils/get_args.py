@@ -98,7 +98,7 @@ def get_args():
     parser.add_argument(
         "--extractor-epochs",
         type=int,
-        default=50000,
+        default=100000,
         help="Number of training epochs.",
     )
     parser.add_argument(

@@ -46,7 +46,7 @@ class IGTPO_Algorithm(nn.Module):
             state_dim=self.args.state_dim,
             action_dim=self.args.action_dim,
             episode_len=self.env.max_steps,
-            batch_size=self.args.batch_size // 4,
+            batch_size=self.args.batch_size,  # // 4,
             verbose=False,
         )
         # === Meta-train using options === #'

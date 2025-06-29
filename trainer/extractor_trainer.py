@@ -84,7 +84,7 @@ class ExtractorTrainer:
                 self.write_log(loss_dict, step=step)
 
                 #### EVALUATIONS ####
-                if step > eval_idx * int(self.epochs / 10):
+                if step > eval_idx * int(self.epochs / 1_000):
 
                     self.write_image(
                         image=eigenvalue_plot,

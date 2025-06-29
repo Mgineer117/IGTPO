@@ -3,11 +3,11 @@
     "feature_dim": 32,
     "eps_clip": 0.2,
     "K_epochs": 5,
-    "num_inner_updates": 5,
+    "num_inner_updates": 10,
     "target_kl": 0.01,
     "num_options": 6,
     "num_minibatch": 4,
-    "minibatch_size": 3072,
-    "batch_size": 12288,
+    "minibatch_size": 2048,
+    "batch_size": 8192,
     "intrinsic_reward_mode": "all-drnd"
 }

@@ -405,7 +405,7 @@ class IGTPO_Learner(Base):
 
         # 4. Total loss
         # if prefix == "outer":
-        # entropy_loss *= 0.0
+        entropy_loss *= 0.0
 
         loss = actor_loss - entropy_loss
 
