@@ -104,8 +104,8 @@ def get_extractor(args):
     feature_network = NeuralNet(
         state_dim=len(args.positional_indices),  # discrete position is always 2d
         feature_dim=(8 // 2 + 1),
-        encoder_fc_dim=[512, 512, 512, 512],
-        activation=nn.LeakyReLU(),
+        encoder_fc_dim=[512, 512, 512],
+        activation=nn.Tanh(),
     )
 
     # === DEFINE LEARNING METHOD FOR EXTRACTOR === #
