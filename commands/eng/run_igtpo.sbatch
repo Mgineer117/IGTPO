@@ -21,13 +21,8 @@ source ~/.bashrc
 conda activate igtpo
 
 # === Run Experiments in Parallel ===
-CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name ppo --project igtpo --env-name fourrooms-v0 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name drndppo --project igtpo --env-name fourrooms-v0 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name psne --project igtpo --env-name fourrooms-v0 &
-
-CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name ppo --project igtpo --env-name maze-v2 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name drndppo --project igtpo --env-name maze-v2 &
-CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name psne --project igtpo --env-name maze-v2 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name igtpo --project igtpo --env-name fourrooms-v0 &
+CUDA_VISIBLE_DEVICES=0 python3 main.py --algo-name igtpo --project igtpo --env-name fourrooms-v0 &
 
 # === Wait for all background jobs to finish ===
 wait
