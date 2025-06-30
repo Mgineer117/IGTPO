@@ -66,10 +66,10 @@ def get_args():
         "--num-options", type=int, default=None, help="Number of samples for training."
     )
     parser.add_argument(
-        "--extractor-lr", type=float, default=3e-3, help="Base learning rate."
+        "--extractor-lr", type=float, default=1e-3, help="Base learning rate."
     )
     parser.add_argument(
-        "--igtpo-actor-lr", type=float, default=1e-3, help="Base learning rate."
+        "--igtpo-actor-lr", type=float, default=3e-3, help="Base learning rate."
     )
     parser.add_argument(
         "--actor-lr", type=float, default=1e-4, help="Base learning rate."
