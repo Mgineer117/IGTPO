@@ -384,11 +384,7 @@ class IGTPO_Learner(Base):
         # 2. Learn actor
         actor_clone = deepcopy(actor)  # self.clone_actor()  # clone for future update
 
-        if prefix == "outer":  #  and np.any(self.probability_history > 1e-6):
-            # advantages = (
-            #     fraction * extrinsic_advantages + (1 - fraction) * intrinsic_advantages
-            # )
-            # advantages = (1 - fraction) * intrinsic_advantages + extrinsic_advantages
+        if prefix == "outer":
             advantages = extrinsic_advantages
         else:
             advantages = intrinsic_advantages
@@ -399,18 +395,14 @@ class IGTPO_Learner(Base):
         )
 
         # 3. actor Loss
-        actor_loss, entropy_loss = self.actor_loss(
+        actor_loss, _ = self.actor_loss(
             actor, states, actions, old_logprobs, normalized_advantages
         )
 
-        # 4. Total loss
-        # if prefix == "outer":
-        entropy_loss *= 0.0
-
-        loss = actor_loss - entropy_loss
-
         # 5. Compute gradients (example)
-        gradients = torch.autograd.grad(loss, actor.parameters(), create_graph=True)
+        gradients = torch.autograd.grad(
+            actor_loss, actor.parameters(), create_graph=True
+        )
         gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
         # 6. Manual SGD update (structured, not flat)
@@ -427,11 +419,9 @@ class IGTPO_Learner(Base):
         self.intrinsic_reward_fn.learn(states, next_states, i, source)
 
         loss_dict = {
-            f"{self.name}/loss/loss": loss.item(),
             f"{self.name}/loss/actor_loss": actor_loss.item(),
             f"{self.name}/loss/extrinsic_critic_loss": extrinsic_critic_loss,
             f"{self.name}/loss/intrinsic_critic_loss": intrinsic_critic_loss,
-            f"{self.name}/loss/entropy_loss": entropy_loss.item(),
             f"{self.name}/grad/actor": actor_grad_norm.item(),
             f"{self.name}/analytics/avg_intrinsic_rewards ({self.contributing_indices[i]})": torch.mean(
                 intrinsic_rewards
