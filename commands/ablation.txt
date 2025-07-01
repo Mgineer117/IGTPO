@@ -1,8 +1,13 @@
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 5 --igtpo-actor-lr 0.0001 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 10 --igtpo-actor-lr 0.0001 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 15 --igtpo-actor-lr 0.0001 &
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 5 --igtpo-actor-lr 0.001 --intrinsic-reward-mode eigendecomp &
+sleep 30
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 10 --igtpo-actor-lr 0.001 --intrinsic-reward-mode eigendecomp &
+sleep 30
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 15 --igtpo-actor-lr 0.001 --intrinsic-reward-mode eigendecomp &
+sleep 30
 
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 5 --igtpo-actor-lr 0.001 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 10 --igtpo-actor-lr 0.001 &
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 15 --igtpo-actor-lr 0.001 &
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 5 --igtpo-actor-lr 0.01 --intrinsic-reward-mode eigendecomp &
+sleep 30
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 10 --igtpo-actor-lr 0.01 --intrinsic-reward-mode eigendecomp &
+sleep 30
+nohup python3 main.py --algo-name igtpo --env-name pointmaze-medium --gpu-idx 0 --num-inner-updates 15 --igtpo-actor-lr 0.01 --intrinsic-reward-mode eigendecomp &
 

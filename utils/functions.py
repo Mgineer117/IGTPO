@@ -41,7 +41,7 @@ def temp_seed(seed, pid):
     random.seed(seed + pid + rand_int)
 
 
-def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
+def call_env(args, episode_len: int | None = None):
     """
     Call the environment based on the given name.
     """
@@ -155,24 +155,14 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
         gym.register_envs(gymnasium_robotics)
 
         if version == "medium":
-            if random_spawn:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, "c", 1, "c", "c", 1],
-                    [1, "c", 1, 1, "c", 1],
-                    [1, "c", "c", "c", "c", 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = True
-            else:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, "r", 1, "g", 0, 1],
-                    [1, 0, 1, 1, 0, 1],
-                    [1, 0, 0, 0, 0, 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = False
+            example_map = [
+                [1, 1, 1, 1, 1, 1],
+                [1, "r", 1, "g", 0, 1],
+                [1, 0, 1, 1, 0, 1],
+                [1, 0, 0, 0, 0, 1],
+                [1, 1, 1, 1, 1, 1],
+            ]
+            continuing_task = False
         elif version == "large":
             pass
         else:

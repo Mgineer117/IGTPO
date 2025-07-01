@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from policy.uniform_random import UniformRandom
 from utils.functions import call_env
 from utils.sampler import OnlineSampler
 
@@ -17,9 +18,7 @@ class IntrinsicRewardFunctions(nn.Module):
         self.episode_len_for_sampling = 250_000
         self.num_trials = 10
 
-        self.extractor_env = call_env(
-            deepcopy(args), self.episode_len_for_sampling, random_spawn=True
-        )
+        self.extractor_env = call_env(deepcopy(args), self.episode_len_for_sampling)
         self.logger = logger
         self.writer = writer
         self.args = args
@@ -29,16 +28,28 @@ class IntrinsicRewardFunctions(nn.Module):
 
         # === MAKE ENV === #
         if self.args.intrinsic_reward_mode == "allo":
-            self.num_rewards = self.args.num_options  # - 2
+            print("NOTE: ALLO is only implemented for discrete environments.")
+            self.num_rewards = self.args.num_options
             self.extractor_mode = "allo"
             self.define_extractor()
             self.define_eigenvectors()
             # self.define_intrinsic_reward_normalizer()
 
             self.sources = ["allo" for _ in range(self.num_rewards)]
+        elif self.args.intrinsic_reward_mode == "eigendecomp":
+            print(
+                "NOTE: Eigendecomposition is only implemented for continuous environments."
+            )
+            self.num_rewards = self.args.num_options
+            self.extractor_mode = "eigendecomp"
+            self.define_extractor()
+            self.define_eigenvectors()
+            # self.define_intrinsic_reward_normalizer()
+
+            self.sources = ["eigendecomp" for _ in range(self.num_rewards)]
         elif self.args.intrinsic_reward_mode == "drnd":
             self.num_rewards = 1
-            self.extractor_mode = None
+            self.extractor_mode = "drnd"
             self.define_drnd_policy()
 
             self.sources = ["drnd"]
@@ -93,10 +104,20 @@ class IntrinsicRewardFunctions(nn.Module):
                     :, eigenvector_idx
                 ].unsqueeze(-1)
 
-        elif self.sources[i] == "drnd":
-            # states = states[:, self.args.positional_indices]
-            # next_states = next_states[:, self.args.positional_indices]
+        elif self.sources[i] == "eigendecomp":
+            # get features
+            difference = (
+                (next_states - states).cpu().numpy()[:, self.args.positional_indices]
+            )
 
+            # Calculate the intrinsic reward using the eigenvector
+            intrinsic_rewards = np.matmul(
+                difference, self.eigenvectors[i][:, np.newaxis]
+            )
+            intrinsic_rewards = torch.from_numpy(intrinsic_rewards).to(
+                states.device, dtype=states.dtype
+            )
+        elif self.sources[i] == "drnd":
             with torch.no_grad():
                 intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
 
@@ -141,23 +162,85 @@ class IntrinsicRewardFunctions(nn.Module):
             pass
 
     def define_extractor(self):
+        from extractor.base.mlp import NeuralNet
+        from extractor.extractor import ALLO
         from policy.uniform_random import UniformRandom
         from trainer.extractor_trainer import ExtractorTrainer
-        from utils.rl import get_extractor
 
         if not os.path.exists("model"):
             os.makedirs("model")
 
-        model_path = f"model/{self.args.env_name}-{self.extractor_mode}-{self.args.num_random_agents}-extractor.pth"
-        extractor = get_extractor(self.args)
+        env_name, version = self.args.env_name.split("-")
+        if env_name in ["fourrooms", "maze"]:
+            model_path = f"model/{self.args.env_name}-{self.extractor_mode}-{self.args.num_random_agents}-extractor.pth"
+            # === CREATE FEATURE EXTRACTOR === #
+            feature_network = NeuralNet(
+                state_dim=len(
+                    self.args.positional_indices
+                ),  # discrete position is always 2d
+                feature_dim=(8 // 2 + 1),
+                encoder_fc_dim=[512, 512, 512, 512],
+                activation=nn.LeakyReLU(),
+            )
 
-        if not os.path.exists(model_path):
-            uniform_random_policy = UniformRandom(
-                state_dim=self.args.state_dim,
-                action_dim=self.args.action_dim,
-                is_discrete=self.args.is_discrete,
+            # === DEFINE LEARNING METHOD FOR EXTRACTOR === #
+            extractor = ALLO(
+                network=feature_network,
+                positional_indices=self.args.positional_indices,
+                extractor_lr=self.args.extractor_lr,
+                epochs=self.args.extractor_epochs,
+                batch_size=4096,
                 device=self.args.device,
             )
+
+            if not os.path.exists(model_path):
+                uniform_random_policy = UniformRandom(
+                    state_dim=self.args.state_dim,
+                    action_dim=self.args.action_dim,
+                    is_discrete=self.args.is_discrete,
+                    device=self.args.device,
+                )
+                sampler = OnlineSampler(
+                    state_dim=self.args.state_dim,
+                    action_dim=self.args.action_dim,
+                    episode_len=self.episode_len_for_sampling,
+                    batch_size=self.num_trials * self.episode_len_for_sampling,
+                    verbose=False,
+                )
+                trainer = ExtractorTrainer(
+                    env=self.extractor_env,
+                    random_policy=uniform_random_policy,
+                    extractor=extractor,
+                    sampler=sampler,
+                    logger=self.logger,
+                    writer=self.writer,
+                    epochs=self.args.extractor_epochs,
+                )
+                final_timesteps = trainer.train()
+                self.current_timesteps += final_timesteps
+
+                torch.save(extractor.state_dict(), model_path)
+            else:
+                extractor.load_state_dict(
+                    torch.load(model_path, map_location=self.args.device)
+                )
+                extractor.to(self.args.device)
+        else:
+            # No extractor is needed for continuous environments
+            extractor = None
+
+        self.extractor = extractor
+
+    def define_eigenvectors(self):
+        # === Define eigenvectors === #
+        env_name, version = self.args.env_name.split("-")
+        if env_name in ["fourrooms", "maze"]:
+            # ALLO does not have explicit eigenvectors.
+            # Instead, we make list that contains the eigenvector index and sign
+            eigenvectors = [
+                (n // 2 + 1, 2 * (n % 2) - 1) for n in range(self.args.num_options)
+            ]
+        else:
             sampler = OnlineSampler(
                 state_dim=self.args.state_dim,
                 action_dim=self.args.action_dim,
@@ -165,34 +248,35 @@ class IntrinsicRewardFunctions(nn.Module):
                 batch_size=self.num_trials * self.episode_len_for_sampling,
                 verbose=False,
             )
-            trainer = ExtractorTrainer(
+
+            uniform_random_policy = UniformRandom(
+                state_dim=self.args.state_dim,
+                action_dim=self.args.action_dim,
+                is_discrete=self.args.is_discrete,
+                device=self.args.device,
+            )
+            batch, _ = sampler.collect_samples(
                 env=self.extractor_env,
-                random_policy=uniform_random_policy,
-                extractor=extractor,
-                sampler=sampler,
-                logger=self.logger,
-                writer=self.writer,
-                epochs=self.args.extractor_epochs,
+                policy=uniform_random_policy,
+                seed=self.args.seed,
             )
-            final_timesteps = trainer.train()
-            self.current_timesteps += final_timesteps
+            states = torch.from_numpy(batch["states"]).to(self.args.device)[
+                :, self.args.positional_indices
+            ]
 
-            torch.save(extractor.state_dict(), model_path)
-        else:
-            extractor.load_state_dict(
-                torch.load(model_path, map_location=self.args.device)
-            )
-            extractor.to(self.args.device)
+            # Covariance-based PCA
+            cov = torch.cov(states.T)
+            eigval, eigvec = torch.linalg.eigh(cov)
+            sorted_indices = torch.argsort(eigval, descending=True)
+            eigval = eigval[sorted_indices]
+            eigvec = eigvec[:, sorted_indices]
+            eigvec_row = eigvec.T.real
+            eig_vec_row = eigvec_row[: int(self.args.num_options / 2)]
+            eigenvectors = torch.cat([eig_vec_row, -eig_vec_row], dim=0)
+            eigenvectors = eigenvectors.cpu().numpy()
 
-        self.extractor = extractor
+        heatmaps = self.extractor_env.get_rewards_heatmap(self.extractor, eigenvectors)
 
-    def define_eigenvectors(self):
-        from utils.rl import get_vector
-
-        # === Define eigenvectors === #
-        eigenvectors, heatmaps = get_vector(
-            self.extractor_env, self.extractor, self.args
-        )
         self.eigenvectors = eigenvectors
         self.logger.write_images(
             step=self.current_timesteps, images=heatmaps, logdir="Image/Heatmaps"

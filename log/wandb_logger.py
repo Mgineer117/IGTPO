@@ -51,6 +51,7 @@ class WandbLogger(BaseLogger):
                 id=str(uuid.uuid4()),
                 resume="allow",
                 config=config,  # type: ignore
+                settings=wandb.Settings(init_timeout=120),
             )
             if not wandb.run
             else wandb.run

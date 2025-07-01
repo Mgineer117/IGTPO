@@ -94,38 +94,3 @@ def estimate_advantages(
 
     returns = values + advantages
     return advantages, returns
-
-
-def get_extractor(args):
-    from extractor.base.mlp import NeuralNet
-    from extractor.extractor import ALLO
-
-    # === CREATE FEATURE EXTRACTOR === #
-    feature_network = NeuralNet(
-        state_dim=len(args.positional_indices),  # discrete position is always 2d
-        feature_dim=(8 // 2 + 1),
-        encoder_fc_dim=[512, 512, 512, 512],
-        activation=nn.LeakyReLU(),
-    )
-
-    # === DEFINE LEARNING METHOD FOR EXTRACTOR === #
-    extractor = ALLO(
-        network=feature_network,
-        positional_indices=args.positional_indices,
-        extractor_lr=args.extractor_lr,
-        epochs=args.extractor_epochs,
-        batch_size=4096,
-        device=args.device,
-    )
-
-    return extractor
-
-
-def get_vector(env, extractor, args):
-    # ALLO does not have explicit eigenvectors.
-    # Instead, we make list that contains the eigenvector index and sign
-    eigenvectors = [(n // 2 + 1, 2 * (n % 2) - 1) for n in range(args.num_options)]
-
-    heatmaps = env.get_rewards_heatmap(extractor, eigenvectors)
-
-    return eigenvectors, heatmaps
