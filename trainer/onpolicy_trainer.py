@@ -139,6 +139,8 @@ class OnPolicyTrainer:
                     a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
                 if num_episodes == 0 and self.rendering:
+                    if t == 0:
+                        print(state[-4:-2])
                     image = self.env.render()
                     image_array.append(image)
 

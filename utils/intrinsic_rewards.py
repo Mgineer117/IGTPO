@@ -1,3 +1,4 @@
+import glob
 import os
 from copy import deepcopy
 
@@ -15,10 +16,12 @@ class IntrinsicRewardFunctions(nn.Module):
         super(IntrinsicRewardFunctions, self).__init__()
 
         # === Parameter saving === #
-        self.episode_len_for_sampling = 250_000
-        self.num_trials = 10
+        self.episode_len_for_sampling = args.episode_len  # 200_000
+        self.num_trials = 2_000
 
-        self.extractor_env = call_env(deepcopy(args), self.episode_len_for_sampling)
+        self.extractor_env = call_env(
+            deepcopy(args), self.episode_len_for_sampling, random_spawn=True
+        )
         self.logger = logger
         self.writer = writer
         self.args = args
@@ -28,7 +31,6 @@ class IntrinsicRewardFunctions(nn.Module):
 
         # === MAKE ENV === #
         if self.args.intrinsic_reward_mode == "allo":
-            print("NOTE: ALLO is only implemented for discrete environments.")
             self.num_rewards = self.args.num_options
             self.extractor_mode = "allo"
             self.define_extractor()
@@ -36,17 +38,6 @@ class IntrinsicRewardFunctions(nn.Module):
             # self.define_intrinsic_reward_normalizer()
 
             self.sources = ["allo" for _ in range(self.num_rewards)]
-        elif self.args.intrinsic_reward_mode == "eigendecomp":
-            print(
-                "NOTE: Eigendecomposition is only implemented for continuous environments."
-            )
-            self.num_rewards = self.args.num_options
-            self.extractor_mode = "eigendecomp"
-            self.define_extractor()
-            self.define_eigenvectors()
-            # self.define_intrinsic_reward_normalizer()
-
-            self.sources = ["eigendecomp" for _ in range(self.num_rewards)]
         elif self.args.intrinsic_reward_mode == "drnd":
             self.num_rewards = 1
             self.extractor_mode = "drnd"
@@ -103,20 +94,6 @@ class IntrinsicRewardFunctions(nn.Module):
                 intrinsic_rewards = eigenvector_sign * difference[
                     :, eigenvector_idx
                 ].unsqueeze(-1)
-
-        elif self.sources[i] == "eigendecomp":
-            # get features
-            difference = (
-                (next_states - states).cpu().numpy()[:, self.args.positional_indices]
-            )
-
-            # Calculate the intrinsic reward using the eigenvector
-            intrinsic_rewards = np.matmul(
-                difference, self.eigenvectors[i][:, np.newaxis]
-            )
-            intrinsic_rewards = torch.from_numpy(intrinsic_rewards).to(
-                states.device, dtype=states.dtype
-            )
         elif self.sources[i] == "drnd":
             with torch.no_grad():
                 intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
@@ -169,78 +146,108 @@ class IntrinsicRewardFunctions(nn.Module):
 
         if not os.path.exists("model"):
             os.makedirs("model")
+        if not os.path.exists(f"model/{self.args.env_name}"):
+            os.makedirs(f"model/{self.args.env_name}")
 
-        env_name, version = self.args.env_name.split("-")
-        if env_name in ["fourrooms", "maze"]:
-            model_path = f"model/{self.args.env_name}-{self.extractor_mode}-{self.args.num_random_agents}-extractor.pth"
-            # === CREATE FEATURE EXTRACTOR === #
-            feature_network = NeuralNet(
-                state_dim=len(
-                    self.args.positional_indices
-                ),  # discrete position is always 2d
-                feature_dim=(8 // 2 + 1),
-                encoder_fc_dim=[512, 512, 512, 512],
-                activation=nn.LeakyReLU(),
+        # env_name, version = self.args.env_name.split("-")
+        # Directory path based on env_name
+
+        # === CREATE FEATURE EXTRACTOR === #
+        feature_network = NeuralNet(
+            state_dim=len(
+                self.args.positional_indices
+            ),  # discrete position is always 2d
+            feature_dim=self.args.feature_dim,  # (8 // 2 + 1),
+            encoder_fc_dim=[512, 512, 512, 512],
+            activation=nn.LeakyReLU(),
+        )
+
+        # === DEFINE LEARNING METHOD FOR EXTRACTOR === #
+        extractor = ALLO(
+            network=feature_network,
+            positional_indices=self.args.positional_indices,
+            extractor_lr=self.args.extractor_lr,
+            epochs=self.args.extractor_epochs,
+            batch_size=1024,
+            lr_barrier_coeff=self.args.lr_barrier_coeff,  # ALLO uses 0.01 lr_barrier_coeff
+            discount=self.args.allo_discount_factor,  # ALLO uses 0.99 discount
+            device=self.args.device,
+        )
+
+        # Step 1: Search for .pth files in the directory
+        model_dir = f"model/{self.args.env_name}/"
+        pth_files = glob.glob(os.path.join(model_dir, "*.pth"))
+
+        if not pth_files:
+            print(
+                f"[INFO] No existing model found in {model_dir}. Training from scratch."
             )
-
-            # === DEFINE LEARNING METHOD FOR EXTRACTOR === #
-            extractor = ALLO(
-                network=feature_network,
-                positional_indices=self.args.positional_indices,
-                extractor_lr=self.args.extractor_lr,
-                epochs=self.args.extractor_epochs,
-                batch_size=4096,
-                device=self.args.device,
+            epochs = 0
+            model_path = os.path.join(
+                model_dir,
+                f"ALLO_{self.args.extractor_epochs}_{self.args.allo_discount_factor}.pth",
             )
+        else:
+            print(f"[INFO] Found {len(pth_files)} .pth files in {model_dir}")
+            epochs = []
+            discount_factors = []
+            valid_files = []
 
-            if not os.path.exists(model_path):
-                uniform_random_policy = UniformRandom(
-                    state_dim=self.args.state_dim,
-                    action_dim=self.args.action_dim,
-                    is_discrete=self.args.is_discrete,
-                    device=self.args.device,
-                )
-                sampler = OnlineSampler(
-                    state_dim=self.args.state_dim,
-                    action_dim=self.args.action_dim,
-                    episode_len=self.episode_len_for_sampling,
-                    batch_size=self.num_trials * self.episode_len_for_sampling,
-                    verbose=False,
-                )
-                trainer = ExtractorTrainer(
-                    env=self.extractor_env,
-                    random_policy=uniform_random_policy,
-                    extractor=extractor,
-                    sampler=sampler,
-                    logger=self.logger,
-                    writer=self.writer,
-                    epochs=self.args.extractor_epochs,
-                )
-                final_timesteps = trainer.train()
-                self.current_timesteps += final_timesteps
+            for pth_file in pth_files:
+                filename = os.path.basename(pth_file)
+                parts = filename.replace(".pth", "").split("_")
+                if len(parts) != 3:
+                    print(f"[WARNING] Skipping malformed file: {filename}")
+                    continue
 
-                torch.save(extractor.state_dict(), model_path)
+                _, epoch_str, discount_str = parts
+                try:
+                    epoch = int(epoch_str)
+                    discount = float(discount_str)
+                    epochs.append(epoch)
+                    discount_factors.append(discount)
+                    valid_files.append(filename)
+                except ValueError:
+                    print(f"[WARNING] Failed to parse file: {filename}")
+                    continue
+
+            if self.args.allo_discount_factor not in discount_factors:
+                print(
+                    f"[INFO] No model with discount factor {self.args.allo_discount_factor} found. Starting fresh."
+                )
+                epochs = 0
+                model_path = os.path.join(
+                    model_dir,
+                    f"ALLO_{self.args.extractor_epochs}_{self.args.allo_discount_factor}.pth",
+                )
             else:
+                matching = [
+                    (e, f, filename)
+                    for e, f, filename in zip(epochs, discount_factors, valid_files)
+                    if f == self.args.allo_discount_factor
+                ]
+
+                max_epoch, _, _ = max(matching, key=lambda x: x[0])
+                idx = epochs.index(max_epoch)
+                filename = matching[idx][-1]
+                model_path = os.path.join(model_dir, filename)
+                print(
+                    f"[INFO] Loading model from: {model_path} (epoch {max_epoch}, discount {self.args.allo_discount_factor})"
+                )
+
                 extractor.load_state_dict(
                     torch.load(model_path, map_location=self.args.device)
                 )
                 extractor.to(self.args.device)
-        else:
-            # No extractor is needed for continuous environments
-            extractor = None
+                epochs = max_epoch  # set current epoch
 
-        self.extractor = extractor
-
-    def define_eigenvectors(self):
-        # === Define eigenvectors === #
-        env_name, version = self.args.env_name.split("-")
-        if env_name in ["fourrooms", "maze"]:
-            # ALLO does not have explicit eigenvectors.
-            # Instead, we make list that contains the eigenvector index and sign
-            eigenvectors = [
-                (n // 2 + 1, 2 * (n % 2) - 1) for n in range(self.args.num_options)
-            ]
-        else:
+        if epochs < self.args.extractor_epochs:
+            uniform_random_policy = UniformRandom(
+                state_dim=self.args.state_dim,
+                action_dim=self.args.action_dim,
+                is_discrete=self.args.is_discrete,
+                device=self.args.device,
+            )
             sampler = OnlineSampler(
                 state_dim=self.args.state_dim,
                 action_dim=self.args.action_dim,
@@ -248,32 +255,29 @@ class IntrinsicRewardFunctions(nn.Module):
                 batch_size=self.num_trials * self.episode_len_for_sampling,
                 verbose=False,
             )
-
-            uniform_random_policy = UniformRandom(
-                state_dim=self.args.state_dim,
-                action_dim=self.args.action_dim,
-                is_discrete=self.args.is_discrete,
-                device=self.args.device,
-            )
-            batch, _ = sampler.collect_samples(
+            trainer = ExtractorTrainer(
                 env=self.extractor_env,
-                policy=uniform_random_policy,
-                seed=self.args.seed,
+                random_policy=uniform_random_policy,
+                extractor=extractor,
+                sampler=sampler,
+                logger=self.logger,
+                writer=self.writer,
+                epochs=self.args.extractor_epochs - epochs,
             )
-            states = torch.from_numpy(batch["states"]).to(self.args.device)[
-                :, self.args.positional_indices
-            ]
+            final_timesteps = trainer.train()
+            self.current_timesteps += final_timesteps
 
-            # Covariance-based PCA
-            cov = torch.cov(states.T)
-            eigval, eigvec = torch.linalg.eigh(cov)
-            sorted_indices = torch.argsort(eigval, descending=True)
-            eigval = eigval[sorted_indices]
-            eigvec = eigvec[:, sorted_indices]
-            eigvec_row = eigvec.T.real
-            eig_vec_row = eigvec_row[: int(self.args.num_options / 2)]
-            eigenvectors = torch.cat([eig_vec_row, -eig_vec_row], dim=0)
-            eigenvectors = eigenvectors.cpu().numpy()
+            torch.save(extractor.state_dict(), model_path)
+
+        self.extractor = extractor
+
+    def define_eigenvectors(self):
+        # === Define eigenvectors === #
+        # ALLO does not have explicit eigenvectors.
+        # Instead, we make list that contains the eigenvector index and sign
+        eigenvectors = [
+            (n // 2 + 1, 2 * (n % 2) - 1) for n in range(self.args.num_options)
+        ]
 
         heatmaps = self.extractor_env.get_rewards_heatmap(self.extractor, eigenvectors)
 

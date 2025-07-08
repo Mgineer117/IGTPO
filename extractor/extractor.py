@@ -47,6 +47,8 @@ class ALLO(Base):
         extractor_lr: float,
         epochs: int,
         batch_size: int,
+        lr_barrier_coeff: float,
+        discount: float,
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -64,15 +66,16 @@ class ALLO(Base):
 
         # === PARAMETERS === #
         self.batch_size = batch_size
-        self.lr_duals = 1e-4
+        self.lr_duals = 1e-3
         self.lr_dual_velocities = 0.1
-        self.lr_barrier_coeff = 1e-2
+        self.lr_barrier_coeff = lr_barrier_coeff
         self.use_barrier_for_duals = 0
         self.min_duals = 0.0
         self.max_duals = 100.0
         self.barrier_increase_rate = 0.1
         self.min_barrier_coefs = 0
         self.max_barrier_coefs = 10000
+        self.discount = discount
 
         self.permutation_array = np.arange(self.d)
 
@@ -118,13 +121,16 @@ class ALLO(Base):
 
         # Sample discounted state pairs
         s1, s2 = self.sample_discounted_pairs_from_batch(
-            batch, batch_size=self.batch_size, discount=0.9, device=self.device
+            batch,
+            batch_size=self.batch_size,
+            discount=self.discount,
+            device=self.device,
         )
 
         phi1, _ = self(s1)  # [B, d]
         phi2, _ = self(s2)
 
-        # if self.nupdates % 5000 == 0:
+        # if self.nupdates % 100 == 0:
         # self.permutation_array = np.random.permutation(self.permutation_array)
 
         phi1 = phi1[:, self.permutation_array]
@@ -154,7 +160,8 @@ class ALLO(Base):
             uncorrelated_phi2.T @ uncorrelated_phi2.detach()
         ) / n  # [d,d]
 
-        identity = torch.eye(d, device=self.device)
+        identity_scaler = 1.0
+        identity = identity_scaler * torch.eye(d, device=self.device)
         error_matrix_1 = torch.tril(inner_product_matrix_1 - identity)
         error_matrix_2 = torch.tril(inner_product_matrix_2 - identity)
         error_matrix = 0.5 * (
@@ -163,24 +170,24 @@ class ALLO(Base):
 
         # === CORRECTED LINE FOR QUADRATIC ERROR ===
         quadratic_error_matrix = error_matrix_1 * error_matrix_2
-        quadratic_error_matrix = error_matrix**2  # elementwise square
+        # quadratic_error_matrix = error_matrix**2  # elementwise square
 
         # Orthogonality dual loss
         dual_loss = (self.dual_variables.detach() * error_matrix).sum()
 
         # Barrier loss penalizing squared errors weighted by barrier coefficients
         # Use the correctly calculated quadratic_error_for_barrier
-        barrier_loss = (
-            self.barrier_coeffs[0, 0].detach() * quadratic_error_matrix
-        ).sum()
+        barrier_loss = quadratic_error_matrix.sum()
 
         # Total loss
-        loss = graph_loss + dual_loss + barrier_loss
+        loss = (
+            graph_loss + dual_loss + self.barrier_coeffs[0, 0].detach() * barrier_loss
+        )
 
         # Optimize
         self.optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10.0)
+        # torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10.0)
         grad_dict, norm_dict = self.get_grad_weight_norm()
         self.optimizer.step()
 

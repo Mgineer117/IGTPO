@@ -178,15 +178,18 @@ class FetchWrapper(gym.Wrapper):
         X, Y, Z = np.meshgrid(x_vals, y_vals, z_vals, indexing="ij")
 
         # Flatten to create a batch of shape (N, 3)
-        features = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=-1)
-        # goal_states = np.repeat(dg.reshape(1, 3), current_states.shape[0], axis=0)
-        # features = np.concatenate([goal_states, current_states], axis=1)
+        states = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=-1)
+
+        with torch.no_grad():
+            intrinsic_rewards, _ = extractor(states)
+            intrinsic_rewards = intrinsic_rewards.cpu().numpy()
 
         images = []
-        for idx, vector in enumerate(eigenvectors):
+        for eigenvector_idx, eigenvector_sign in eigenvectors:
             # Compute reward as dot product
-            rewards = features @ vector  # shape: (N,)
             # rewards = achieved_goals @ vector  # shape: (N,)
+            rewards = eigenvector_sign * intrinsic_rewards[:, eigenvector_idx]
+
             neg_idx = rewards < 0
             pos_idx = rewards >= 0
 
@@ -216,9 +219,9 @@ class FetchWrapper(gym.Wrapper):
             fig = plt.figure(figsize=(8, 6))
             ax = fig.add_subplot(111, projection="3d")
             sc = ax.scatter(
-                features[:, 0],
-                features[:, 1],
-                features[:, 2],
+                states[:, 0],
+                states[:, 1],
+                states[:, 2],
                 c=rewards,
                 cmap=cm.seismic,
                 s=30,
@@ -236,129 +239,29 @@ class FetchWrapper(gym.Wrapper):
                 label="Desired Goal",
             )
 
-            ax.set_title(f"Rewards for Eigenvector {idx}")
+            ax.set_title(
+                f"Rewards for Eigenvector {eigenvector_idx}-{eigenvector_sign}"
+            )
             ax.set_xlabel("X")
             ax.set_ylabel("Y")
             ax.set_zlabel("Z")
             plt.colorbar(sc, ax=ax, label="Normalized Reward")
             ax.legend()
 
+            images.append(fig)
+            plt.close()
+
             # Convert plot to image
-            buf = BytesIO()
-            plt.tight_layout()
-            plt.savefig(buf, format="png")
-            plt.close(fig)
-            buf.seek(0)
-            image = Image.open(buf).convert("RGB")
-            images.append(np.array(image))
-            buf.close()
+            # buf = BytesIO()
+            # plt.tight_layout()
+            # plt.savefig(buf, format="png")
+            # plt.close(fig)
+            # buf.seek(0)
+            # image = Image.open(buf).convert("RGB")
+            # images.append(np.array(image))
+            # buf.close()
 
         return images
-
-    # def get_rewards_heatmap(self, extractor: torch.nn.Module, eigenvectors: np.ndarray):
-
-    #     state, _ = self.reset(seed=self.seed)
-    #     dg = state[-6:-3]  # desired goal pos
-    #     del state
-    #     self.close()
-
-    #     X = [0.5, 1.5]
-    #     Y = [0, 1.0]
-    #     Z = [0.5, 1.0]
-
-    #     # Define the ranges and number of increments per dimension
-    #     x_vals = np.linspace(X[0], X[1], num=10)
-    #     y_vals = np.linspace(Y[0], Y[1], num=10)
-    #     z_vals = np.linspace(Z[0], Z[1], num=10)
-
-    #     # Create 3D meshgrid
-    #     X, Y, Z = np.meshgrid(x_vals, y_vals, z_vals, indexing="ij")
-
-    #     # Flatten to create a batch of shape (N, 3)
-    #     states = np.stack([X.ravel(), Y.ravel(), Z.ravel()], axis=-1)
-
-    #     with torch.no_grad():
-    #         intrinsic_rewards, _ = extractor(states)
-    #         intrinsic_rewards = intrinsic_rewards.cpu().numpy()
-
-    #     images = []
-    #     for eigenvector_idx, eigenvector_sign in eigenvectors:
-    #         # Compute reward as dot product
-    #         # rewards = achieved_goals @ vector  # shape: (N,)
-    #         rewards = eigenvector_sign * intrinsic_rewards[:, eigenvector_idx]
-
-    #         neg_idx = rewards < 0
-    #         pos_idx = rewards >= 0
-
-    #         # Normalize positive values to [0, 1]
-    #         if np.any(pos_idx):
-    #             pos_max, pos_min = (
-    #                 rewards[pos_idx].max(),
-    #                 rewards[pos_idx].min(),
-    #             )
-    #             if pos_max != pos_min:
-    #                 rewards[pos_idx] = (rewards[pos_idx] - pos_min) / (
-    #                     pos_max - pos_min + 1e-4
-    #                 )
-
-    #         # Normalize negative values to [-1, 0]
-    #         if np.any(neg_idx):
-    #             neg_max, neg_min = (
-    #                 rewards[neg_idx].max(),
-    #                 rewards[neg_idx].min(),
-    #             )
-    #             if neg_max != neg_min:
-    #                 rewards[neg_idx] = (rewards[neg_idx] - neg_min) / (
-    #                     neg_max - neg_min + 1e-4
-    #                 ) - 1.0
-
-    #         # Create 3D scatter plot
-    #         fig = plt.figure(figsize=(8, 6))
-    #         ax = fig.add_subplot(111, projection="3d")
-    #         sc = ax.scatter(
-    #             states[:, 0],
-    #             states[:, 1],
-    #             states[:, 2],
-    #             c=rewards,
-    #             cmap=cm.seismic,
-    #             s=30,
-    #         )
-
-    #         # Mark desired goal
-    #         ax.scatter(
-    #             dg[0],
-    #             dg[1],
-    #             dg[2],
-    #             color="yellow",
-    #             edgecolors="black",
-    #             s=200,
-    #             marker="*",
-    #             label="Desired Goal",
-    #         )
-
-    #         ax.set_title(
-    #             f"Rewards for Eigenvector {eigenvector_idx}-{eigenvector_sign}"
-    #         )
-    #         ax.set_xlabel("X")
-    #         ax.set_ylabel("Y")
-    #         ax.set_zlabel("Z")
-    #         plt.colorbar(sc, ax=ax, label="Normalized Reward")
-    #         ax.legend()
-
-    #         images.append(fig)
-    #         plt.close()
-
-    #         # Convert plot to image
-    #         # buf = BytesIO()
-    #         # plt.tight_layout()
-    #         # plt.savefig(buf, format="png")
-    #         # plt.close(fig)
-    #         # buf.seek(0)
-    #         # image = Image.open(buf).convert("RGB")
-    #         # images.append(np.array(image))
-    #         # buf.close()
-
-    #     return images
 
 
 class PointMazeWrapper(gym.Wrapper):
@@ -393,11 +296,7 @@ class PointMazeWrapper(gym.Wrapper):
         )
         return observation, reward, termination, truncation, info
 
-    def get_rewards_heatmap(
-        self,
-        extractor: torch.nn.Module,
-        eigenvectors: np.ndarray,
-    ):
+    def get_rewards_heatmap(self, extractor: torch.nn.Module, eigenvectors: np.ndarray):
         # Get desired goal (2D)
         state, _ = self.reset(seed=self.seed)
         dg = state[-4:-2]
@@ -409,16 +308,18 @@ class PointMazeWrapper(gym.Wrapper):
         maze_height = len(example_map)
         maze_width = len(example_map[0])
 
-        # Spatial bounds and discretization
+        # Spatial bounds (MuJoCo centered coordinates)
         cell_size = 1.0
-        x_low, x_high = 0, maze_width * cell_size
-        y_low, y_high = 0, maze_height * cell_size
+        x_low = -maze_width * cell_size / 2
+        x_high = maze_width * cell_size / 2
+        y_low = -maze_height * cell_size / 2
+        y_high = maze_height * cell_size / 2
         resolution = 80
 
         x_vals = np.linspace(x_low, x_high, num=resolution)
         y_vals = np.linspace(y_low, y_high, num=resolution)
         X_grid, Y_grid = np.meshgrid(x_vals, y_vals, indexing="ij")
-        features = np.stack([X_grid.ravel(), Y_grid.ravel()], axis=-1)
+        states = np.stack([X_grid.ravel(), Y_grid.ravel()], axis=-1)
 
         self.width = resolution
         self.height = resolution
@@ -431,20 +332,21 @@ class PointMazeWrapper(gym.Wrapper):
         for i in range(maze_height):
             for j in range(maze_width):
                 val = example_map[i][j]
-                x_start = j * cell_size
-                x_end = (j + 1) * cell_size
-                y_start = (maze_height - 1 - i) * cell_size
-                y_end = (maze_height - i) * cell_size
+
+                # MuJoCo coordinate of cell center
+                x_center = (j + 0.5) * cell_size - (maze_width * cell_size / 2)
+                y_center = (maze_height * cell_size / 2) - (i + 0.5) * cell_size
+
+                x_start = x_center - cell_size / 2
+                x_end = x_center + cell_size / 2
+                y_start = y_center - cell_size / 2
+                y_end = y_center + cell_size / 2
 
                 region_mask = (
                     (X_grid >= x_start)
-                    & (
-                        (X_grid < x_end)
-                        if j < maze_width - 1
-                        else (X_grid <= (x_end + 1e-4))
-                    )
+                    & (X_grid < x_end)
                     & (Y_grid >= y_start)
-                    & ((Y_grid < y_end) if i < maze_height - 1 else (Y_grid <= y_end))
+                    & (Y_grid < y_end)
                 )
 
                 if val == 1:
@@ -454,18 +356,21 @@ class PointMazeWrapper(gym.Wrapper):
                 elif val == "r":
                     agent_mask |= region_mask
 
-        # Expand wall_mask for channel-wise masking
         valid_mask = ~wall_mask
 
         # Loop over each eigenvector to generate heatmaps
         images = []
-        for idx, vector in enumerate(eigenvectors):
-            rewards = features @ vector
+        with torch.no_grad():
+            intrinsic_rewards, _ = extractor(states)
+        intrinsic_rewards = intrinsic_rewards.cpu().numpy()
 
+        for eigenvector_idx, eigenvector_sign in eigenvectors:
+            rewards = eigenvector_sign * intrinsic_rewards[:, eigenvector_idx]
+
+            # Normalize rewards separately for positive and negative
             neg_idx = rewards < 0
             pos_idx = rewards >= 0
 
-            # Normalize positive/negative separately
             if np.any(pos_idx):
                 pos_max, pos_min = rewards[pos_idx].max(), rewards[pos_idx].min()
                 if pos_max != pos_min:
@@ -484,8 +389,6 @@ class PointMazeWrapper(gym.Wrapper):
                     rewards[neg_idx] = -1
 
             reward_map = rewards.reshape(resolution, resolution)
-
-            # Convert reward map to RGB using your function
             rgb_img = self.reward_map_to_rgb(reward_map, valid_mask)
             images.append(rgb_img)
 

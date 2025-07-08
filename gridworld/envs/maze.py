@@ -49,7 +49,7 @@ class Maze(MultiGridEnv):
         render_mode: Literal["human", "rgb_array"] = "rgb_array",
     ):
         self.state_representation = state_representation
-        if grid_type < 0 or grid_type >= 3:
+        if grid_type < 0 or grid_type >= 2:
             raise ValueError(
                 f"The Fourroom only accepts grid_type of 0 and 1, given {grid_type}"
             )
@@ -74,8 +74,8 @@ class Maze(MultiGridEnv):
         ]
 
         # Define positions for goals and agents
-        self.goal_positions = [(15, 1), (15, 15), (7, 3)]
-        self.agent_positions = [(13, 1), (2, 2), (5, 9)]
+        self.goal_positions = [(1, 5), (7, 3)]
+        self.agent_positions = [(7, 3), (5, 9)]
 
         self.num_random_agent = num_random_agent
         self.random_agent_positions = [
@@ -99,46 +99,17 @@ class Maze(MultiGridEnv):
         # Explicit maze structure based on the image
         self.map_structure = [
             [
-                "###################",
-                "#   #   #     #   #",
-                "# # # # # ####### #",
-                "# #   # # #       #",
-                "# ### ### # #######",
-                "# # #     #   #   #",
-                "# # ######### # ###",
-                "# #     #   # # # #",
-                "# ##### # # # # # #",
-                "#   #   # #   #   #",
-                "# # # ### ##### ###",
-                "# # #   # #   #   #",
-                "# # ### # # # ### #",
-                "# #     #   # #   #",
-                "# ########### # # #",
-                "#           #   # #",
-                "# ######### ##### #",
-                "#         #       #",
-                "###################",
-            ],
-            [
-                "###################",
-                "#             #   #",
-                "#   ##### ##### # #",
-                "#               # #",
-                "# ####### ####### #",
-                "# #     # #       #",
-                "# #     # #       #",
-                "# #     # #       #",
-                "# #     # # #######",
-                "#       #         #",
-                "# ##### # ####### #",
-                "# #               #",
-                "# # ####### ##### #",
-                "# #       # #     #",
-                "# # #     # #     #",
-                "# # #     # #     #",
-                "# # #     # #     #",
-                "#   #       #     #",
-                "###################",
+                "###########",
+                "#   #     #",
+                "# # # ### #",
+                "# #   #   #",
+                "# ### # ###",
+                "# # # #   #",
+                "### # ### #",
+                "#   # #   #",
+                "# ##### # #",
+                "#       # #",
+                "###########",
             ],
             [
                 "###########",

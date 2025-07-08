@@ -8,5 +8,6 @@
     "num_minibatch": 4,
     "minibatch_size": 1024,
     "batch_size": 4096,
-    "intrinsic_reward_mode": "all"
+    "intrinsic_reward_mode": "allo",
+    "allo_discount_factor": 0.99
 }

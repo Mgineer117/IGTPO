@@ -15,12 +15,11 @@ from utils.wrapper import FetchWrapper, GridWrapper, ObsNormWrapper, PointMazeWr
 
 EPI_LENGTH = {
     "fourrooms-v0": 100,
+    "ninerooms-v0": 150,
     "maze-v0": 300,
-    "maze-v1": 100,
-    "maze-v2": 300,
-    "ninerooms-v0": 100,
-    "ctf-v0": 100,
-    "pointmaze-medium": 200,
+    "maze-v1": 300,
+    "pointmaze-v0": 300,
+    "pointmaze-v1": 300,
     "fetch-reach": 50,
     "fetch-reachdense": 50,
 }
@@ -41,7 +40,7 @@ def temp_seed(seed, pid):
     random.seed(seed + pid + rand_int)
 
 
-def call_env(args, episode_len: int | None = None):
+def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
     """
     Call the environment based on the given name.
     """
@@ -54,10 +53,10 @@ def call_env(args, episode_len: int | None = None):
     args.episode_len = max_steps
 
     env_name, version = args.env_name.split("-")
+    version = int(version[-1]) if version[-1].isdigit() else version[-1]
     if env_name in ("fourrooms", "ninerooms", "maze"):
         # For grid environment, we do not use an observation normalization
         # since the most of the state is static (walls) that leads to 0 std.
-        version = int(version[-1]) if version[-1].isdigit() else version[-1]
         if env_name == "fourrooms":
             from gridworld.envs.fourrooms import FourRooms
 
@@ -140,7 +139,7 @@ def call_env(args, episode_len: int | None = None):
             NotImplementedError(f"Version {version} is not implemented.")
 
         env = FetchWrapper(env, max_steps, args.seed)
-        env = ObsNormWrapper(env)
+        # env = ObsNormWrapper(env)
 
         args.positional_indices = [-6, -5, -4]
         args.state_dim = (
@@ -153,18 +152,52 @@ def call_env(args, episode_len: int | None = None):
 
     elif env_name == "pointmaze":
         gym.register_envs(gymnasium_robotics)
-
-        if version == "medium":
-            example_map = [
-                [1, 1, 1, 1, 1, 1],
-                [1, "r", 1, "g", 0, 1],
-                [1, 0, 1, 1, 0, 1],
-                [1, 0, 0, 0, 0, 1],
-                [1, 1, 1, 1, 1, 1],
-            ]
-            continuing_task = False
-        elif version == "large":
-            pass
+        if version == 0:
+            if random_spawn:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "c", 0, 0, "c", 1],
+                    [1, 1, 1, 1, 0, 1],
+                    [1, "c", 0, 0, "c", 1],
+                    [1, 1, 1, 1, 0, 1],
+                    [1, "c", 0, 0, "c", 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = True
+            else:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "g", 0, 0, 0, 1],
+                    [1, 1, 1, 1, 0, 1],
+                    [1, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 0, 1],
+                    [1, "r", 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = False
+        elif version == 1:
+            if random_spawn:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, 0, "c", 1, "c", 1],
+                    [1, 0, 1, 1, 0, 1],
+                    [1, 0, "c", "c", 0, 1],
+                    [1, 0, 1, 1, 0, 1],
+                    [1, "c", 1, "c", 0, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = True
+            else:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, 0, "g", 1, 0, 1],
+                    [1, 0, 1, 1, 0, 1],
+                    [1, 0, 0, 0, 0, 1],
+                    [1, 0, 1, 1, 0, 1],
+                    [1, 0, 1, "r", 0, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = False
         else:
             NotImplementedError(f"Version {version} is not implemented.")
 
@@ -177,7 +210,7 @@ def call_env(args, episode_len: int | None = None):
         )
 
         env = PointMazeWrapper(env, example_map, max_steps, args.seed)
-        env = ObsNormWrapper(env)
+        # env = ObsNormWrapper(env)
 
         args.positional_indices = [-4, -3]
         args.state_dim = (

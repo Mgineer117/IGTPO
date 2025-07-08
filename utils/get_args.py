@@ -66,10 +66,10 @@ def get_args():
         "--num-options", type=int, default=None, help="Number of samples for training."
     )
     parser.add_argument(
-        "--extractor-lr", type=float, default=1e-3, help="Base learning rate."
+        "--extractor-lr", type=float, default=3e-4, help="Base learning rate."
     )
     parser.add_argument(
-        "--igtpo-actor-lr", type=float, default=3e-3, help="Base learning rate."
+        "--igtpo-actor-lr", type=float, default=2e-3, help="Base learning rate."
     )
     parser.add_argument(
         "--actor-lr", type=float, default=1e-4, help="Base learning rate."
@@ -78,7 +78,13 @@ def get_args():
         "--critic-lr", type=float, default=1e-4, help="Base learning rate."
     )
     parser.add_argument(
+        "--lr-barrier-coeff", type=float, default=1.0, help="Base learning rate."
+    )
+    parser.add_argument(
         "--eps-clip", type=float, default=None, help="Base learning rate."
+    )
+    parser.add_argument(
+        "--allo-discount-factor", type=float, default=None, help="Base learning rate."
     )
     parser.add_argument(
         "--actor-fc-dim", type=list, default=[256, 256], help="Base learning rate."
@@ -87,7 +93,7 @@ def get_args():
         "--critic-fc-dim", type=list, default=[256, 256], help="Base learning rate."
     )
     parser.add_argument(
-        "--feature-dim", type=int, default=None, help="Base learning rate."
+        "--feature-dim", type=int, default=10, help="Base learning rate."
     )
     parser.add_argument(
         "--hl-timesteps", type=int, default=None, help="Number of training epochs."
@@ -98,7 +104,7 @@ def get_args():
     parser.add_argument(
         "--extractor-epochs",
         type=int,
-        default=200000,
+        default=100000,
         help="Number of training epochs.",
     )
     parser.add_argument(

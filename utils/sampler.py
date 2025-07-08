@@ -23,15 +23,6 @@ class Base:
         self.action_dim = kwargs.get("action_dim")
         self.episode_len = kwargs.get("episode_len")
         self.batch_size = kwargs.get("batch_size")
-        self.thread_batch_size = 2 * self.episode_len
-        self.cpu_preserve_rate = kwargs.get("cpu_preserve_rate", 0.95)
-        self.num_cores = kwargs.get("num_cores", None)
-
-        # Preprocess for multiprocessing to avoid CPU overscription and deadlock
-        self.temp_cores = floor(mp.cpu_count() * self.cpu_preserve_rate)
-        self.num_cores = (
-            self.num_cores if self.num_cores is not None else self.temp_cores
-        )
 
     def get_reset_data(self):
         """
@@ -39,7 +30,7 @@ class Base:
         The remainder of zero arrays will be cut in the end.
         np.nan makes it easy to debug
         """
-        batch_size = self.batch_size_for_worker + self.episode_len
+        batch_size = 2 * self.episode_len
         data = dict(
             states=np.full(((batch_size,) + self.state_dim), np.nan, dtype=np.float32),
             next_states=np.full(
@@ -61,8 +52,6 @@ class OnlineSampler(Base):
         action_dim: int,
         episode_len: int,
         batch_size: int,
-        cpu_preserve_rate: float = 1.0,
-        num_cores: int | None = None,
         verbose: bool = True,
     ) -> None:
         """
@@ -81,14 +70,11 @@ class OnlineSampler(Base):
             num_cores (int | None): Override for max cores to use.
             verbose (bool): Whether to print initialization info.
         """
-        self.batch_size_for_worker = 2 * episode_len
         super().__init__(
             state_dim=state_dim,
             action_dim=action_dim,
             episode_len=episode_len,
             batch_size=batch_size,
-            cpu_preserve_rate=cpu_preserve_rate,
-            num_cores=num_cores,
         )
 
         self.total_num_worker = ceil(batch_size / episode_len)
@@ -203,43 +189,35 @@ class OnlineSampler(Base):
         # estimate the batch size to hava a large batch
         data = self.get_reset_data()  # allocate memory
 
-        current_step = 0
-        while current_step < self.batch_size_for_worker:
-            # env initialization
-            options = {"random_init_pos": random_init_pos}
-            state, _ = env.reset(seed=seed, options=options)
+        # env initialization
+        options = {"random_init_pos": random_init_pos}
+        state, _ = env.reset(seed=worker_seed, options=options)
 
-            for t in range(self.episode_len):
-                with torch.no_grad():
-                    a, metaData = policy(state, deterministic=deterministic)
-                    a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
+        for t in range(self.episode_len):
+            with torch.no_grad():
+                a, metaData = policy(state, deterministic=deterministic)
+                a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
-                    # env stepping
-                    next_state, rew, term, trunc, infos = env.step(a)
-                    done = term or trunc
+                # env stepping
+                next_state, rew, term, trunc, infos = env.step(a)
+                done = term or trunc
 
-                # saving the data
-                data["states"][current_step + t] = state
-                data["next_states"][current_step + t] = next_state
-                data["actions"][current_step + t] = a
-                data["rewards"][current_step + t] = rew
-                data["terminals"][current_step + t] = done
-                data["logprobs"][current_step + t] = (
-                    metaData["logprobs"].cpu().detach().numpy()
-                )
-                data["entropys"][current_step + t] = (
-                    metaData["entropy"].cpu().detach().numpy()
-                )
+            # saving the data
+            data["states"][t] = state
+            data["next_states"][t] = next_state
+            data["actions"][t] = a
+            data["rewards"][t] = rew
+            data["terminals"][t] = done
+            data["logprobs"][t] = metaData["logprobs"].cpu().detach().numpy()
+            data["entropys"][t] = metaData["entropy"].cpu().detach().numpy()
 
-                if done:
-                    # clear log
-                    current_step += t + 1
-                    break
+            if done:
+                break
 
-                state = next_state
+            state = next_state
 
         for k in data:
-            data[k] = data[k][:current_step]
+            data[k] = data[k][: t + 1]
 
         if queue is not None:
             queue.put([pid, data])
@@ -253,11 +231,9 @@ class HLSampler(OnlineSampler):
         state_dim: tuple,
         action_dim: int,
         episode_len: int,
+        batch_size: int,
         max_option_len: int,
         gamma: float,
-        batch_size: int,
-        cpu_preserve_rate: float = 0.95,
-        num_cores: int | None = None,
         verbose: bool = True,
     ) -> None:
         """
@@ -276,8 +252,6 @@ class HLSampler(OnlineSampler):
             action_dim=action_dim,
             episode_len=episode_len,
             batch_size=batch_size,
-            cpu_preserve_rate=cpu_preserve_rate,
-            num_cores=num_cores,
             verbose=verbose,
         )
 
@@ -302,71 +276,63 @@ class HLSampler(OnlineSampler):
         # estimate the batch size to hava a large batch
         data = self.get_reset_data()  # allocate memory
 
-        current_step = 0
-        while current_step < self.batch_size_for_worker:
-            # env initialization
-            options = {"random_init_pos": random_init_pos}
-            state, _ = env.reset(seed=seed, options=options)
+        # env initialization
+        options = {"random_init_pos": random_init_pos}
+        state, _ = env.reset(seed=worker_seed, options=options)
 
-            for t in range(self.episode_len):
-                with torch.no_grad():
-                    [option_idx, a], metaData = policy(
-                        state, option_idx=None, deterministic=deterministic
-                    )
-                    a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
+        for t in range(self.episode_len):
+            with torch.no_grad():
+                [option_idx, a], metaData = policy(
+                    state, option_idx=None, deterministic=deterministic
+                )
+                a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
-                if metaData["is_option"]:
-                    r = 0
-                    option_termination = False
-                    for i in range(self.max_option_len):
-                        next_state, rew, term, trunc, infos = env.step(a)
-                        done = term or trunc
-
-                        r += self.gamma**i * rew
-                        if done or option_termination:
-                            rew = r
-                            break
-                        else:
-                            with torch.no_grad():
-                                [_, a], optionMetaData = policy(
-                                    next_state,
-                                    option_idx=option_idx,
-                                    deterministic=deterministic,
-                                )
-                                a = (
-                                    a.cpu().numpy().squeeze(0)
-                                    if a.shape[-1] > 1
-                                    else [a.item()]
-                                )
-                            option_termination = optionMetaData["option_termination"]
-
-                else:
-                    # env stepping
+            if metaData["is_option"]:
+                r = 0
+                option_termination = False
+                for i in range(self.max_option_len):
                     next_state, rew, term, trunc, infos = env.step(a)
                     done = term or trunc
 
-                # saving the data
-                data["states"][current_step + t] = state
-                data["next_states"][current_step + t] = next_state
-                data["actions"][current_step + t] = metaData["logits"]
-                data["rewards"][current_step + t] = rew
-                data["terminals"][current_step + t] = done
-                data["logprobs"][current_step + t] = (
-                    metaData["logprobs"].cpu().detach().numpy()
-                )
-                data["entropys"][current_step + t] = (
-                    metaData["entropy"].cpu().detach().numpy()
-                )
+                    r += self.gamma**i * rew
+                    if done or option_termination:
+                        rew = r
+                        break
+                    else:
+                        with torch.no_grad():
+                            [_, a], optionMetaData = policy(
+                                next_state,
+                                option_idx=option_idx,
+                                deterministic=deterministic,
+                            )
+                            a = (
+                                a.cpu().numpy().squeeze(0)
+                                if a.shape[-1] > 1
+                                else [a.item()]
+                            )
+                        option_termination = optionMetaData["option_termination"]
 
-                if done:
-                    # clear log
-                    current_step += t + 1
-                    break
+            else:
+                # env stepping
+                next_state, rew, term, trunc, infos = env.step(a)
+                done = term or trunc
 
-                state = next_state
+            # saving the data
+            data["states"][t] = state
+            data["next_states"][t] = next_state
+            data["actions"][t] = metaData["logits"]
+            data["rewards"][t] = rew
+            data["terminals"][t] = done
+            data["logprobs"][t] = metaData["logprobs"].cpu().detach().numpy()
+            data["entropys"][t] = metaData["entropy"].cpu().detach().numpy()
+
+            if done:
+                break
+
+            state = next_state
 
         for k in data:
-            data[k] = data[k][:current_step]
+            data[k] = data[k][: t + 1]
 
         if queue is not None:
             queue.put([pid, data])
