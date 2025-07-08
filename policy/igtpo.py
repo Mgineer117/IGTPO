@@ -399,10 +399,10 @@ class IGTPO_Learner(Base):
             actor, states, actions, old_logprobs, normalized_advantages
         )
 
-        if prefix == "outer":
-            loss = actor_loss - entropy_loss
-        else:
-            loss = actor_loss  # - entropy_loss
+        # if prefix == "outer":
+        #     loss = actor_loss - entropy_loss
+        # else:
+        loss = actor_loss  # - entropy_loss
 
         # 5. Compute gradients (example)
         gradients = torch.autograd.grad(loss, actor.parameters(), create_graph=True)
