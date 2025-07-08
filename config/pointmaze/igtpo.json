@@ -4,7 +4,7 @@
     "K_epochs": 5,
     "num_inner_updates": 5,
     "target_kl": 0.01,
-    "num_options": 4,
+    "num_options": 6,
     "num_minibatch": 4,
     "minibatch_size": 4096,
     "batch_size": 16384,

@@ -1,10 +1,10 @@
 {
-    "hl_timesteps": 1e7,
-    "timesteps": 1e7,
+    "hl_timesteps": 2e7,
+    "timesteps": 5e7,
     "eps_clip": 0.2,
     "K_epochs": 5,
     "target_kl": 0.01,
-    "num_options": 4,
+    "num_options": 6,
     "num_minibatch": 4,
     "minibatch_size": 4096,
     "intrinsic_reward_mode": "allo",
