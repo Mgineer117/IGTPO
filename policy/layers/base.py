@@ -140,83 +140,90 @@ class Base(nn.Module):
     def record_state_visitations(
         self, states: np.ndarray | torch.Tensor, alpha: float | None = None
     ):
-        if alpha is None:
-            alpha = 0.01
+        if hasattr(self, "grid"):
+            if alpha is None:
+                alpha = 0.01
 
-        wall_idx = 2
-        agent_idx = 10
-        goal_idx = 8
+            wall_idx = 2
+            agent_idx = 10
+            goal_idx = 8
 
-        if isinstance(states, torch.Tensor):
-            states = states.cpu().numpy()
+            if isinstance(states, torch.Tensor):
+                states = states.cpu().numpy()
 
-        if hasattr(self, "is_discrete"):
-            is_discrete = self.is_discrete
-        elif hasattr(self, "actor"):
-            is_discrete = self.actor.is_discrete
+            if hasattr(self, "is_discrete"):
+                is_discrete = self.is_discrete
+            elif hasattr(self, "actor"):
+                is_discrete = self.actor.is_discrete
 
-        # if hasattr(self, "grid"):
-        #     grid = self.grid
-        # elif hasattr(self, "actor"):
-        #     is_discrete = self.actor.is_discrete
+            # if hasattr(self, "grid"):
+            #     grid = self.grid
+            # elif hasattr(self, "actor"):
+            #     is_discrete = self.actor.is_discrete
 
-        if is_discrete:
-            if self.state_visitation is None:
-                self.state_visitation = np.zeros_like(self.grid, dtype=np.float32)
+            if is_discrete:
+                if self.state_visitation is None:
+                    self.state_visitation = np.zeros_like(self.grid, dtype=np.float32)
 
-            # Mask out wall and goal
-            mask = (self.grid == wall_idx) | (self.grid == goal_idx)
+                # Mask out wall and goal
+                mask = (self.grid == wall_idx) | (self.grid == goal_idx)
 
-            # Compute where agent is
-            # agent_mask = (batch["states"] == agent_idx).astype(np.float32)
-            # visitation = batch["states"].mean(0) + 1e-8  # average across batch
-            visitation = np.zeros_like(self.grid, dtype=np.float32) + 1e-8
-            for s in states:
-                visitation[int(s[0]), int(s[1]), 0] += 1 / (states.shape[0])
+                # Compute where agent is
+                # agent_mask = (batch["states"] == agent_idx).astype(np.float32)
+                # visitation = batch["states"].mean(0) + 1e-8  # average across batch
+                visitation = np.zeros_like(self.grid, dtype=np.float32) + 1e-8
+                for s in states:
+                    visitation[int(s[0]), int(s[1]), 0] += 1 / (states.shape[0])
 
-            visitation[mask] = 0.0  # remove static or irrelevant regions
+                visitation[mask] = 0.0  # remove static or irrelevant regions
 
-            # EMA update
-            if self.state_visitation is None:
-                self.state_visitation = visitation
+                # EMA update
+                if self.state_visitation is None:
+                    self.state_visitation = visitation
+                else:
+                    self.state_visitation = (
+                        alpha * visitation + (1 - alpha) * self.state_visitation
+                    )
             else:
-                self.state_visitation = (
-                    alpha * visitation + (1 - alpha) * self.state_visitation
+                # ----- CONTINUOUS CASE -----
+                if len(states.shape) == 3:
+                    states = states.reshape(states.shape[0], -1)
+
+                # Initialize PCA once and fix basis
+                if not hasattr(self, "pca_fitted") or not self.pca_fitted:
+                    self.pca = PCA(n_components=2)
+                    self.pca.fit(states)  # fit on first batch or a replay buffer
+                    self.pca_fitted = True
+                    # Optional: fix global bin edges based on the projected range
+                    proj = self.pca.transform(states)
+                    self.visitation_x_bounds = (
+                        proj[:, 0].min() - 3,
+                        proj[:, 0].max() + 3,
+                    )
+                    self.visitation_y_bounds = (
+                        proj[:, 1].min() - 3,
+                        proj[:, 1].max() + 3,
+                    )
+
+                # Project using fixed PCA
+                projected = self.pca.transform(states)
+                x_min, x_max = self.visitation_x_bounds
+                y_min, y_max = self.visitation_y_bounds
+
+                bins = 100
+                heatmap, _, _ = np.histogram2d(
+                    projected[:, 0],
+                    projected[:, 1],
+                    bins=bins,
+                    range=[[x_min, x_max], [y_min, y_max]],
                 )
-        else:
-            # ----- CONTINUOUS CASE -----
-            if len(states.shape) == 3:
-                states = states.reshape(states.shape[0], -1)
+                heatmap = heatmap.T
+                heatmap += 1e-8
+                heatmap /= heatmap.sum()
 
-            # Initialize PCA once and fix basis
-            if not hasattr(self, "pca_fitted") or not self.pca_fitted:
-                self.pca = PCA(n_components=2)
-                self.pca.fit(states)  # fit on first batch or a replay buffer
-                self.pca_fitted = True
-                # Optional: fix global bin edges based on the projected range
-                proj = self.pca.transform(states)
-                self.visitation_x_bounds = (proj[:, 0].min() - 3, proj[:, 0].max() + 3)
-                self.visitation_y_bounds = (proj[:, 1].min() - 3, proj[:, 1].max() + 3)
-
-            # Project using fixed PCA
-            projected = self.pca.transform(states)
-            x_min, x_max = self.visitation_x_bounds
-            y_min, y_max = self.visitation_y_bounds
-
-            bins = 100
-            heatmap, _, _ = np.histogram2d(
-                projected[:, 0],
-                projected[:, 1],
-                bins=bins,
-                range=[[x_min, x_max], [y_min, y_max]],
-            )
-            heatmap = heatmap.T
-            heatmap += 1e-8
-            heatmap /= heatmap.sum()
-
-            if self.state_visitation is None:
-                self.state_visitation = heatmap
-            else:
-                self.state_visitation = (
-                    alpha * heatmap + (1 - alpha) * self.state_visitation
-                )
+                if self.state_visitation is None:
+                    self.state_visitation = heatmap
+                else:
+                    self.state_visitation = (
+                        alpha * heatmap + (1 - alpha) * self.state_visitation
+                    )

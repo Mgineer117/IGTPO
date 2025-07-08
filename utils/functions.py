@@ -15,11 +15,11 @@ from utils.wrapper import FetchWrapper, GridWrapper, ObsNormWrapper, PointMazeWr
 
 EPI_LENGTH = {
     "fourrooms-v0": 100,
-    "ninerooms-v0": 150,
-    "maze-v0": 300,
+    "ninerooms-v0": 200,
+    "maze-v0": 500,
     "maze-v1": 300,
-    "pointmaze-v0": 300,
-    "pointmaze-v1": 300,
+    "pointmaze-v0": 500,
+    "pointmaze-v1": 500,
     "fetch-reach": 50,
     "fetch-reachdense": 50,
 }
