@@ -83,6 +83,7 @@ class IGTPO_Algorithm(nn.Module):
         self.policy = IGTPO_Learner(
             actor=actor,
             critic=critic,
+            is_discrete=self.args.is_discrete,
             intrinsic_reward_fn=self.intrinsic_reward_fn,
             nupdates=self.args.igtpo_nupdates,
             num_inner_updates=self.args.num_inner_updates,

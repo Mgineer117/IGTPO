@@ -14,6 +14,7 @@ class PPO_Learner(Base):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
+        is_discrete: bool,
         nupdates: int,
         actor_lr: float = 3e-4,
         critic_lr: float = 5e-4,
@@ -36,6 +37,7 @@ class PPO_Learner(Base):
 
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
+        self.is_discrete = is_discrete
 
         self.num_minibatch = num_minibatch
         self.minibatch_size = minibatch_size

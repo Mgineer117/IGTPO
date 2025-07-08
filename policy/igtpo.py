@@ -30,6 +30,7 @@ class IGTPO_Learner(Base):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
+        is_discrete: bool,
         intrinsic_reward_fn: IntrinsicRewardFunctions,
         nupdates: int,
         num_inner_updates: int,
@@ -51,6 +52,7 @@ class IGTPO_Learner(Base):
 
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
+        self.is_discrete = is_discrete
         self.num_inner_updates = num_inner_updates
 
         self.init_actor_lr = actor_lr

@@ -59,6 +59,7 @@ class TRPO_Algorithm(nn.Module):
         self.policy = TRPO_Learner(
             actor=actor,
             critic=critic,
+            is_discrete=self.args.is_discrete,
             nupdates=self.args.nupdates,
             critic_lr=self.args.critic_lr,
             entropy_scaler=self.args.entropy_scaler,

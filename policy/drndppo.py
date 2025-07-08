@@ -16,6 +16,7 @@ class DRNDPPO_Learner(Base):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
+        is_discrete: bool,
         drnd_model: nn.Module,
         drnd_critic: PPO_Critic,
         positional_indices: list,
@@ -47,6 +48,7 @@ class DRNDPPO_Learner(Base):
 
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
+        self.is_discrete = is_discrete
 
         self.positional_indices = positional_indices
         self.nupdates = nupdates

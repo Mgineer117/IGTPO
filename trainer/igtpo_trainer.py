@@ -163,7 +163,6 @@ class IGTPOTrainer:
 
                     plt.close()
 
-                    # if self.policy.state_visitation is not None:
                     for key, value in visitation_dict.items():
                         visitation_map = value
                         vmin, vmax = visitation_map.min(), visitation_map.max()

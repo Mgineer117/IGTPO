@@ -78,6 +78,7 @@ class DRND_PPO_Algorithm(nn.Module):
         self.policy = DRNDPPO_Learner(
             actor=actor,
             critic=critic,
+            is_discrete=self.args.is_discrete,
             drnd_model=drnd_model,
             drnd_critic=drnd_critic,
             positional_indices=self.args.positional_indices,

@@ -102,6 +102,7 @@ class HRL(nn.Module):
             policy = PPO_Learner(
                 actor=actor,
                 critic=critic,
+                is_discrete=self.args.is_discrete,
                 nupdates=self.args.nupdates,
                 actor_lr=self.args.actor_lr,
                 critic_lr=self.args.critic_lr,
@@ -139,6 +140,7 @@ class HRL(nn.Module):
         self.hl_policy = HRL_Learner(
             actor=actor,
             critic=critic,
+            is_discrete=self.args.is_discrete,
             nupdates=self.args.hl_nupdates,
             actor_lr=self.args.actor_lr,
             critic_lr=self.args.critic_lr,

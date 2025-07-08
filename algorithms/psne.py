@@ -78,6 +78,7 @@ class PSNE_Algorithm(nn.Module):
         self.policy = PSNE_Learner(
             actor=actor,
             critic=critic,
+            is_discrete=self.args.is_discrete,
             states=batch["states"],
             nupdates=self.args.nupdates,
             critic_lr=self.args.critic_lr,

@@ -22,6 +22,7 @@ class TRPO_Learner(Base):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
+        is_discrete: bool,
         nupdates: int,
         critic_lr: float = 5e-4,
         batch_size: int = 8,
@@ -43,6 +44,7 @@ class TRPO_Learner(Base):
 
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
+        self.is_discrete = is_discrete
 
         self.entropy_scaler = entropy_scaler
         self.batch_size = batch_size

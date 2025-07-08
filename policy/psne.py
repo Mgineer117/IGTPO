@@ -23,6 +23,7 @@ class PSNE_Learner(Base):
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
+        is_discrete: bool,
         states: np.ndarray,
         nupdates: int,
         critic_lr: float = 5e-4,
@@ -46,6 +47,7 @@ class PSNE_Learner(Base):
         self.states = self.preprocess_state(states)
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
+        self.is_discrete = is_discrete
 
         self.entropy_scaler = entropy_scaler
         self.batch_size = batch_size
