@@ -19,8 +19,8 @@ EPI_LENGTH = {
     "maze-v0": 200,
     "maze-v1": 200,
     "maze-v2": 200,
-    "pointmaze-v0": 500,
-    "pointmaze-v1": 500,
+    "pointmaze-v0": 300,
+    "pointmaze-v1": 300,
     "fetch-reach": 50,
     "fetch-reachdense": 50,
 }
@@ -170,9 +170,9 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
                     [1, 1, 1, 1, 1, 1],
                     [1, "g", 0, 0, 0, 1],
                     [1, 1, 1, 1, 0, 1],
-                    [1, 0, 0, 0, 0, 1],
-                    [1, 1, 1, 1, 0, 1],
                     [1, "r", 0, 0, 0, 1],
+                    [1, 1, 1, 1, 0, 1],
+                    [1, 0, 0, 0, 0, 1],
                     [1, 1, 1, 1, 1, 1],
                 ]
                 continuing_task = False
@@ -193,9 +193,9 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
                     [1, 1, 1, 1, 1, 1],
                     [1, 0, "g", 1, 0, 1],
                     [1, 0, 1, 1, 0, 1],
-                    [1, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 0, "r", 1],
                     [1, 0, 1, 1, 0, 1],
-                    [1, 0, 1, "r", 0, 1],
+                    [1, 0, 1, 0, 0, 1],
                     [1, 1, 1, 1, 1, 1],
                 ]
                 continuing_task = False

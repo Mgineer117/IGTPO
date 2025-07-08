@@ -249,13 +249,10 @@ class IGTPO_Learner(Base):
             # weights = np.ones_like(self.probability_history)
             # Random exploration
             weights = np.random.rand(len(self.probability_history))
-            weights = (weights - weights.min()) / (weights.max() - weights.min() + 1e-8)
-            weights = weights / (weights.sum() + 1e-8)
         else:
             # Exploitation: use normalized probability_history
             weights = self.probability_history
-            weights = (weights - weights.min()) / (weights.max() - weights.min() + 1e-8)
-            weights = weights / (weights.sum() + 1e-8)
+        weights = weights / (weights.sum() + 1e-8)
 
         gradients = tuple(
             sum(w * g for w, g in zip(weights, grads_per_param))
@@ -398,14 +395,17 @@ class IGTPO_Learner(Base):
         )
 
         # 3. actor Loss
-        actor_loss, _ = self.actor_loss(
+        actor_loss, entropy_loss = self.actor_loss(
             actor, states, actions, old_logprobs, normalized_advantages
         )
 
+        if prefix == "outer":
+            loss = actor_loss - entropy_loss
+        else:
+            loss = actor_loss  # - entropy_loss
+
         # 5. Compute gradients (example)
-        gradients = torch.autograd.grad(
-            actor_loss, actor.parameters(), create_graph=True
-        )
+        gradients = torch.autograd.grad(loss, actor.parameters(), create_graph=True)
         gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
         # 6. Manual SGD update (structured, not flat)
