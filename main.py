@@ -88,9 +88,5 @@ if __name__ == "__main__":
         args.seed = seed
         args.unique_id = unique_id
 
-        # when using extractor, make sure feature_dim is sufficient
-        if args.feature_dim is not None:
-            assert args.feature_dim >= args.num_options
-
         run(args, seed, unique_id, exp_time)
     concat_csv_columnwise_and_delete(folder_path=args.logdir)
