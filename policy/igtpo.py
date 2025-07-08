@@ -249,16 +249,12 @@ class IGTPO_Learner(Base):
             # weights = np.ones_like(self.probability_history)
             # Random exploration
             weights = np.random.rand(len(self.probability_history))
-            weights = (weights - weights.min()) / (
-                weights.max() - weights.min() + 1e-8
-            ) + 1
+            weights = (weights - weights.min()) / (weights.max() - weights.min() + 1e-8)
             weights = weights / (weights.sum() + 1e-8)
         else:
             # Exploitation: use normalized probability_history
             weights = self.probability_history
-            weights = (weights - weights.min()) / (
-                weights.max() - weights.min() + 1e-8
-            ) + 1
+            weights = (weights - weights.min()) / (weights.max() - weights.min() + 1e-8)
             weights = weights / (weights.sum() + 1e-8)
 
         gradients = tuple(
