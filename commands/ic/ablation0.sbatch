@@ -27,8 +27,8 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-v0 --project igtpo-a
 CUDA_VISIBLE_DEVICES=0 python3 main.py --env-name pointmaze-v0 --project igtpo-ablation --algo-name igtpo --num-inner-updates 20 --intrinsic-reward-mode allo & 
 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.0001 --intrinsic-reward-mode allo &
+CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.005 --intrinsic-reward-mode allo &
 CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.01 --intrinsic-reward-mode allo &
-CUDA_VISIBLE_DEVICES=1 python3 main.py --env-name pointmaze-v0 --project igtpo-ablation --algo-name igtpo --igtpo-actor-lr 0.1 --intrinsic-reward-mode allo &
 
 # === Wait for all background jobs to finish ===
 wait
