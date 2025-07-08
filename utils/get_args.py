@@ -69,7 +69,7 @@ def get_args():
         "--extractor-lr", type=float, default=3e-4, help="Base learning rate."
     )
     parser.add_argument(
-        "--igtpo-actor-lr", type=float, default=1e-2, help="Base learning rate."
+        "--igtpo-actor-lr", type=float, default=1e-3, help="Base learning rate."
     )
     parser.add_argument(
         "--actor-lr", type=float, default=1e-4, help="Base learning rate."
