@@ -244,16 +244,21 @@ class IGTPO_Learner(Base):
         prob = np.random.rand()
         epsilon = self.epsilon * (1 - fraction)
 
-        if prob < epsilon:
+        if prob < epsilon or np.all(self.probability_history == 0.0):
             # Uniform exploration
             # weights = np.ones_like(self.probability_history)
             # Random exploration
             weights = np.random.rand(len(self.probability_history))
+            weights = (weights - weights.min()) / (
+                weights.max() - weights.min() + 1e-8
+            ) + 1
             weights = weights / (weights.sum() + 1e-8)
         else:
             # Exploitation: use normalized probability_history
             weights = self.probability_history
-            weights = (weights - weights.min()) / (weights.max() - weights.min() + 1e-8)
+            weights = (weights - weights.min()) / (
+                weights.max() - weights.min() + 1e-8
+            ) + 1
             weights = weights / (weights.sum() + 1e-8)
 
         gradients = tuple(
@@ -386,7 +391,7 @@ class IGTPO_Learner(Base):
         # 2. Learn actor
         actor_clone = deepcopy(actor)  # self.clone_actor()  # clone for future update
 
-        if prefix == "outer":
+        if prefix == "outer":  # and np.any(self.probability_history > 0.0):
             advantages = extrinsic_advantages
         else:
             advantages = intrinsic_advantages
