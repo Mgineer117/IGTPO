@@ -97,6 +97,7 @@ class TRPO_Learner(Base):
         old_logprobs = self.preprocess_state(batch["logprobs"])
 
         self.record_state_visitations(states)
+        timesteps = states.shape[0]
 
         # Compute advantages and returns
         with torch.no_grad():
@@ -196,7 +197,6 @@ class TRPO_Learner(Base):
         del states, actions, rewards, terminals, old_logprobs
         self.eval()
 
-        timesteps = self.batch_size
         update_time = time.time() - t0
 
         # reduce target_kl for next iteration

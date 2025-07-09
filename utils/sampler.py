@@ -159,9 +159,9 @@ class OnlineSampler(Base):
                 else:
                     memory[key] = wm[key]
 
-        # ✅ Truncate to desired batch size
-        for k in memory:
-            memory[k] = memory[k][: self.batch_size]
+        # # ✅ Truncate to desired batch size
+        # for k in memory:
+        #     memory[k] = memory[k][: self.batch_size]
 
         t_end = time.time()
         policy.to_device(device)
@@ -189,35 +189,44 @@ class OnlineSampler(Base):
         # estimate the batch size to hava a large batch
         data = self.get_reset_data()  # allocate memory
 
-        # env initialization
-        options = {"random_init_pos": random_init_pos}
-        state, _ = env.reset(seed=worker_seed, options=options)
+        current_time = 0
+        while current_time < self.episode_len:
+            # env initialization
+            options = {"random_init_pos": random_init_pos}
+            state, _ = env.reset(seed=worker_seed, options=options)
 
-        for t in range(self.episode_len):
-            with torch.no_grad():
-                a, metaData = policy(state, deterministic=deterministic)
-                a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
+            for t in range(self.episode_len):
+                with torch.no_grad():
+                    a, metaData = policy(state, deterministic=deterministic)
+                    a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
-                # env stepping
-                next_state, rew, term, trunc, infos = env.step(a)
-                done = term or trunc
+                    # env stepping
+                    next_state, rew, term, trunc, infos = env.step(a)
+                    if t == self.episode_len - 1:
+                        trunc = True  # force truncation at the end of episode
+                    done = term or trunc
 
-            # saving the data
-            data["states"][t] = state
-            data["next_states"][t] = next_state
-            data["actions"][t] = a
-            data["rewards"][t] = rew
-            data["terminals"][t] = done
-            data["logprobs"][t] = metaData["logprobs"].cpu().detach().numpy()
-            data["entropys"][t] = metaData["entropy"].cpu().detach().numpy()
+                # saving the data
+                data["states"][current_time + t] = state
+                data["next_states"][current_time + t] = next_state
+                data["actions"][current_time + t] = a
+                data["rewards"][current_time + t] = rew
+                data["terminals"][current_time + t] = done
+                data["logprobs"][current_time + t] = (
+                    metaData["logprobs"].cpu().detach().numpy()
+                )
+                data["entropys"][current_time + t] = (
+                    metaData["entropy"].cpu().detach().numpy()
+                )
 
-            if done:
-                break
+                if done:
+                    current_time += t + 1
+                    break
 
-            state = next_state
+                state = next_state
 
         for k in data:
-            data[k] = data[k][: t + 1]
+            data[k] = data[k][:current_time]
 
         if queue is not None:
             queue.put([pid, data])
@@ -276,63 +285,74 @@ class HLSampler(OnlineSampler):
         # estimate the batch size to hava a large batch
         data = self.get_reset_data()  # allocate memory
 
-        # env initialization
-        options = {"random_init_pos": random_init_pos}
-        state, _ = env.reset(seed=worker_seed, options=options)
+        current_time = 0
+        while current_time <= self.episode_len:
+            # env initialization
+            options = {"random_init_pos": random_init_pos}
+            state, _ = env.reset(seed=worker_seed, options=options)
 
-        for t in range(self.episode_len):
-            with torch.no_grad():
-                [option_idx, a], metaData = policy(
-                    state, option_idx=None, deterministic=deterministic
-                )
-                a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
+            for t in range(self.episode_len):
+                with torch.no_grad():
+                    [option_idx, a], metaData = policy(
+                        state, option_idx=None, deterministic=deterministic
+                    )
+                    a = a.cpu().numpy().squeeze(0) if a.shape[-1] > 1 else [a.item()]
 
-            if metaData["is_option"]:
-                r = 0
-                option_termination = False
-                for i in range(self.max_option_len):
+                if metaData["is_option"]:
+                    r = 0
+                    option_termination = False
+                    for i in range(self.max_option_len):
+                        next_state, rew, term, trunc, infos = env.step(a)
+                        if t == self.episode_len - 1:
+                            trunc = True  # force truncation at the end of episode
+                        done = term or trunc
+
+                        r += self.gamma**i * rew
+                        if done or option_termination:
+                            rew = r
+                            break
+                        else:
+                            with torch.no_grad():
+                                [_, a], optionMetaData = policy(
+                                    next_state,
+                                    option_idx=option_idx,
+                                    deterministic=deterministic,
+                                )
+                                a = (
+                                    a.cpu().numpy().squeeze(0)
+                                    if a.shape[-1] > 1
+                                    else [a.item()]
+                                )
+                            option_termination = optionMetaData["option_termination"]
+
+                else:
+                    # env stepping
                     next_state, rew, term, trunc, infos = env.step(a)
+                    if t == self.episode_len - 1:
+                        trunc = True  # force truncation at the end of episode
                     done = term or trunc
 
-                    r += self.gamma**i * rew
-                    if done or option_termination:
-                        rew = r
-                        break
-                    else:
-                        with torch.no_grad():
-                            [_, a], optionMetaData = policy(
-                                next_state,
-                                option_idx=option_idx,
-                                deterministic=deterministic,
-                            )
-                            a = (
-                                a.cpu().numpy().squeeze(0)
-                                if a.shape[-1] > 1
-                                else [a.item()]
-                            )
-                        option_termination = optionMetaData["option_termination"]
+                # saving the data
+                data["states"][current_time + t] = state
+                data["next_states"][current_time + t] = next_state
+                data["actions"][current_time + t] = metaData["logits"]
+                data["rewards"][current_time + t] = rew
+                data["terminals"][current_time + t] = done
+                data["logprobs"][current_time + t] = (
+                    metaData["logprobs"].cpu().detach().numpy()
+                )
+                data["entropys"][current_time + t] = (
+                    metaData["entropy"].cpu().detach().numpy()
+                )
 
-            else:
-                # env stepping
-                next_state, rew, term, trunc, infos = env.step(a)
-                done = term or trunc
+                if done:
+                    current_time += t + 1
+                    break
 
-            # saving the data
-            data["states"][t] = state
-            data["next_states"][t] = next_state
-            data["actions"][t] = metaData["logits"]
-            data["rewards"][t] = rew
-            data["terminals"][t] = done
-            data["logprobs"][t] = metaData["logprobs"].cpu().detach().numpy()
-            data["entropys"][t] = metaData["entropy"].cpu().detach().numpy()
-
-            if done:
-                break
-
-            state = next_state
+                state = next_state
 
         for k in data:
-            data[k] = data[k][: t + 1]
+            data[k] = data[k][:current_time]
 
         if queue is not None:
             queue.put([pid, data])

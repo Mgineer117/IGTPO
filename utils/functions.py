@@ -191,11 +191,11 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
             else:
                 example_map = [
                     [1, 1, 1, 1, 1, 1],
-                    [1, 0, "g", 1, 0, 1],
+                    [1, 0, 0, 1, 0, 1],
                     [1, 0, 1, 1, 0, 1],
-                    [1, 0, 0, 0, "r", 1],
+                    [1, 0, 0, 0, 0, 1],
                     [1, 0, 1, 1, 0, 1],
-                    [1, 0, 1, 0, 0, 1],
+                    [1, "r", 1, "g", 0, 1],
                     [1, 1, 1, 1, 1, 1],
                 ]
                 continuing_task = False
