@@ -42,6 +42,7 @@ class IGTPO_Learner(Base):
         l2_reg: float = 1e-8,
         gamma: float = 0.99,
         gae: float = 0.9,
+        weight_option: str = "softmax-exploitation-with-exploration",
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -91,6 +92,7 @@ class IGTPO_Learner(Base):
         #
         self.steps = 0
         self.epsilon = 0.3
+        self.weight_option = weight_option
         self.contributing_indices = [
             str(i) for i in range(self.intrinsic_reward_fn.num_rewards)
         ]
@@ -244,14 +246,21 @@ class IGTPO_Learner(Base):
         prob = np.random.rand()
         epsilon = self.epsilon * (1 - fraction)
 
-        if prob < epsilon or np.all(self.probability_history == 0.0):
-            # Uniform exploration
-            # weights = np.ones_like(self.probability_history)
-            # Random exploration
-            weights = np.random.rand(len(self.probability_history))
-        else:
-            # Exploitation: use normalized probability_history
+        if self.weight_option == "argmax-exploitation":
+            weights = np.zeros_like(self.probability_history)
+            weights[np.argmax(self.probability_history)] = 1.0
+        elif self.weight_option == "softmax-exploitation":
             weights = self.probability_history
+        elif self.weight_option == "softmax-exploitation-with-exploration":
+            if prob < epsilon or np.all(self.probability_history == 0.0):
+                # Uniform exploration
+                # weights = np.ones_like(self.probability_history)
+                # Random exploration
+                weights = np.random.rand(len(self.probability_history))
+            else:
+                # Exploitation: use normalized probability_history
+                weights = self.probability_history
+
         weights = weights / (weights.sum() + 1e-8)
 
         gradients = tuple(
