@@ -139,8 +139,8 @@ class FetchWrapper(gym.Wrapper):
         observation = np.concatenate(
             (
                 observation_dict["observation"],
-                observation_dict["desired_goal"],
                 observation_dict["achieved_goal"],
+                observation_dict["desired_goal"],
             )
         )
 
@@ -152,10 +152,16 @@ class FetchWrapper(gym.Wrapper):
         observation = np.concatenate(
             (
                 observation_dict["observation"],
-                observation_dict["desired_goal"],
                 observation_dict["achieved_goal"],
+                observation_dict["desired_goal"],
             )
         )
+
+        reward += 1.0  # to scale reawrd [0, 1]
+
+        if reward == 1.0:
+            termination = True  # terminate if goal is achieved
+
         return observation, reward, termination, truncation, info
 
     def get_rewards_heatmap(self, extractor: torch.nn.Module, eigenvectors: np.ndarray):

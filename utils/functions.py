@@ -25,7 +25,8 @@ EPI_LENGTH = {
     "pointmaze-v3": 1000,
     "antmaze-v0": 1000,
     "antmaze-v1": 1000,
-    "fetchreach-v0": 500,
+    "fetchreach-v0": 50,
+    "fetchpush-v0": 50,
     "fetch-reachdense": 50,
 }
 
@@ -103,11 +104,6 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
     elif env_name.startswith("fetch"):
 
         gym.register_envs(gymnasium_robotics)
-        env = gym.make(
-            "FetchReach-v4",
-            max_episode_steps=max_steps,
-            render_mode="rgb_array",
-        )
 
         if env_name == "fetchreach":
             env = gym.make(

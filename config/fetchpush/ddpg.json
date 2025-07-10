@@ -1,0 +1,4 @@
+{
+    "timesteps": 5e7,
+    "batch_size": 256
+}
