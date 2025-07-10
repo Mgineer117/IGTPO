@@ -2,6 +2,7 @@
     "timesteps": 1e7,
     "eps_clip": 0.2,
     "K_epochs": 5,
+    "igtpo_actor_lr": 1e-2,
     "num_inner_updates": 5,
     "target_kl": 0.01,
     "num_options": 4,

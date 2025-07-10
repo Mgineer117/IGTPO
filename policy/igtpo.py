@@ -400,9 +400,11 @@ class IGTPO_Learner(Base):
         )
 
         if prefix == "outer":
+            # include the entropy loss in the outer-level policy update
             loss = actor_loss - entropy_loss
         else:
-            loss = actor_loss  # - entropy_loss
+            # do not include the entropy loss in the inner-level policy update
+            loss = actor_loss
 
         # 5. Compute gradients (example)
         gradients = torch.autograd.grad(loss, actor.parameters(), create_graph=True)
