@@ -15,13 +15,17 @@ from utils.wrapper import FetchWrapper, GridWrapper, ObsNormWrapper, PointMazeWr
 
 EPI_LENGTH = {
     "fourrooms-v0": 100,
-    "ninerooms-v0": 200,
+    "ninerooms-v0": 300,
     "maze-v0": 200,
     "maze-v1": 200,
     "maze-v2": 200,
-    "pointmaze-v0": 300,
-    "pointmaze-v1": 300,
-    "fetch-reach": 50,
+    "pointmaze-v0": 500,
+    "pointmaze-v1": 500,
+    "pointmaze-v2": 1000,
+    "pointmaze-v3": 1000,
+    "antmaze-v0": 1000,
+    "antmaze-v1": 1000,
+    "fetchreach-v0": 500,
     "fetch-reachdense": 50,
 }
 
@@ -96,41 +100,46 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
         from gridworld.envs.ctf import CtF
 
         env = CtF(grid_type=version, max_steps=max_steps)
-    elif env_name == "fetch":
+    elif env_name.startswith("fetch"):
 
         gym.register_envs(gymnasium_robotics)
+        env = gym.make(
+            "FetchReach-v4",
+            max_episode_steps=max_steps,
+            render_mode="rgb_array",
+        )
 
-        if version == "reach":
+        if env_name == "fetchreach":
             env = gym.make(
                 "FetchReach-v4",
                 max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
-        elif version == "reachdense":
+        elif env_name == "fetchreachdense":
             env = gym.make(
                 "FetchReachDense-v4",
                 max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
-        elif version == "push":
+        elif env_name == "fetchpush":
             env = gym.make(
                 "FetchPush-v4",
                 max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
-        elif version == "pushdense":
+        elif env_name == "fetchpushdense":
             env = gym.make(
                 "FetchPushDense-v4",
                 max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
-        elif version == "pickandplace":
+        elif env_name == "fetchpickandplace":
             env = gym.make(
                 "FetchPickAndPlace-v4",
                 max_episode_steps=max_steps,
                 render_mode="rgb_array",
             )
-        elif version == "pickandplacedense":
+        elif env_name == "fetchpickandplacedense":
             env = gym.make(
                 "FetchPickAndPlaceDense-v4",
                 max_episode_steps=max_steps,
@@ -157,11 +166,28 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
             if random_spawn:
                 example_map = [
                     [1, 1, 1, 1, 1, 1],
-                    [1, "c", 0, 0, "c", 1],
-                    [1, 1, 1, 1, 0, 1],
-                    [1, "c", 0, 0, "c", 1],
-                    [1, 1, 1, 1, 0, 1],
-                    [1, "c", 0, 0, "c", 1],
+                    [1, "c", 1, "c", "c", 1],
+                    [1, "c", 1, 1, "c", 1],
+                    [1, "c", "c", "c", "c", 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = True
+            else:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "r", 1, "g", 0, 1],
+                    [1, 0, 1, 1, 0, 1],
+                    [1, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = False
+        elif version == 1:
+            if random_spawn:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "c", "c", "c", "c", 1],
+                    [1, 1, 1, 1, "c", 1],
+                    [1, "c", "c", "c", "c", 1],
                     [1, 1, 1, 1, 1, 1],
                 ]
                 continuing_task = True
@@ -171,31 +197,52 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
                     [1, "g", 0, 0, 0, 1],
                     [1, 1, 1, 1, 0, 1],
                     [1, "r", 0, 0, 0, 1],
-                    [1, 1, 1, 1, 0, 1],
-                    [1, 0, 0, 0, 0, 1],
                     [1, 1, 1, 1, 1, 1],
                 ]
                 continuing_task = False
-        elif version == 1:
+        elif version == 2:
             if random_spawn:
                 example_map = [
                     [1, 1, 1, 1, 1, 1],
-                    [1, 0, "c", 1, "c", 1],
-                    [1, 0, 1, 1, 0, 1],
-                    [1, 0, "c", "c", 0, 1],
-                    [1, 0, 1, 1, 0, 1],
-                    [1, "c", 1, "c", 0, 1],
+                    [1, "c", "c", "c", "c", 1],
+                    [1, 1, 1, 1, "c", 1],
+                    [1, "c", "c", "c", "c", 1],
+                    [1, 1, 1, 1, 0, 1],
+                    [1, "c", "c", "c", "c", 1],
                     [1, 1, 1, 1, 1, 1],
                 ]
                 continuing_task = True
             else:
                 example_map = [
                     [1, 1, 1, 1, 1, 1],
-                    [1, 0, 0, 1, 0, 1],
+                    [1, "g", 0, 0, 0, 1],
+                    [1, 1, 1, 1, 0, 1],
+                    [1, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 0, 1],
+                    [1, "r", 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = False
+        elif version == 3:
+            if random_spawn:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "c", "c", 1, "c", 1],
+                    [1, "c", 1, 1, "c", 1],
+                    [1, "c", "c", "c", "c", 1],
+                    [1, "c", 1, 1, "c", 1],
+                    [1, "c", 1, "r", "c", 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = True
+            else:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, 0, "g", 1, 0, 1],
                     [1, 0, 1, 1, 0, 1],
                     [1, 0, 0, 0, 0, 1],
                     [1, 0, 1, 1, 0, 1],
-                    [1, "r", 1, "g", 0, 1],
+                    [1, 0, 1, "r", 0, 1],
                     [1, 1, 1, 1, 1, 1],
                 ]
                 continuing_task = False
@@ -204,6 +251,68 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
 
         env = gym.make(
             "PointMaze_UMaze-v3",
+            maze_map=example_map,
+            max_episode_steps=max_steps,
+            continuing_task=continuing_task,
+            render_mode="rgb_array",
+        )
+
+        env = PointMazeWrapper(env, example_map, max_steps, args.seed)
+        # env = ObsNormWrapper(env)
+
+        args.positional_indices = [-4, -3]
+        args.state_dim = (
+            env.observation_space["observation"].shape[0]
+            + env.observation_space["achieved_goal"].shape[0]
+            + env.observation_space["desired_goal"].shape[0],
+        )
+        args.action_dim = env.action_space.shape[0]
+        args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
+    elif env_name == "antmaze":
+        gym.register_envs(gymnasium_robotics)
+        if version == 0:
+            if random_spawn:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "c", "c", "c", "c", 1],
+                    [1, 1, 1, 1, "c", 1],
+                    [1, "c", "c", "c", "c", 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = True
+            else:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "g", 0, 0, 0, 1],
+                    [1, 1, 1, 1, 0, 1],
+                    [1, "r", 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = False
+        elif version == 1:
+            if random_spawn:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, "c", 1, 1, "c", 1],
+                    [1, "c", "c", "c", "c", 1],
+                    [1, "c", 1, 1, "c", 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = True
+            else:
+                example_map = [
+                    [1, 1, 1, 1, 1, 1],
+                    [1, 0, 1, 1, "g", 1],
+                    [1, 0, 0, 0, 0, 1],
+                    [1, "r", 1, 1, 0, 1],
+                    [1, 1, 1, 1, 1, 1],
+                ]
+                continuing_task = False
+        else:
+            NotImplementedError(f"Version {version} is not implemented.")
+
+        env = gym.make(
+            "AntMaze_UMazeDense-v5",
             maze_map=example_map,
             max_episode_steps=max_steps,
             continuing_task=continuing_task,

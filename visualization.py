@@ -121,7 +121,7 @@ for i in range(meta_steps):
         scale_units="xy",
         # scale=1.0 / (norm + 1e-6),  # prevent divide-by-zero
         color="purple",
-        width=0.25 * norm,
+        # width=0.25 * norm,
         label=(
             r"$\nabla_{\tilde{\theta}^{(0)}} \mathcal{J}(\tilde{\theta}^{(N)})$"
             if i == 0
@@ -142,7 +142,7 @@ for i in range(meta_steps):
         angles="xy",
         scale_units="xy",
         color="green",
-        width=0.08 * norm_local,
+        # width=0.08 * norm_local,
         label=(
             r"$\nabla_{\tilde{\theta}^{(N)}} \mathcal{J}(\tilde{\theta}^{(N)})$"
             if i == 0
