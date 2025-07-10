@@ -1,15 +1,15 @@
 {
-    "timesteps": 5e7,
+    "timesteps": 1e7,
     "eps_clip": 0.2,
     "K_epochs": 5,
     "igtpo_actor_lr": 1e-2,
     "num_inner_updates": 5,
     "target_kl": 0.01,
-    "gamma": 0.999,
+    "gamma": 0.99,
     "num_options": 6,
     "num_minibatch": 4,
-    "minibatch_size": 4096,
-    "batch_size": 16384,
+    "minibatch_size": 1024,
+    "batch_size": 2096,
     "intrinsic_reward_mode": "allo",
     "allo_discount_factor": 0.99
 }

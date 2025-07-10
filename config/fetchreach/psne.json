@@ -1,6 +1,6 @@
 {
-    "timesteps": 5e7,
+    "timesteps": 1e7,
     "target_kl": 0.01,
-    "gamma": 0.999,
-    "batch_size": 16384
+    "gamma": 0.99,
+    "batch_size": 4096
 }

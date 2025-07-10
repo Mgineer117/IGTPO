@@ -3,11 +3,11 @@ import numpy as np
 import torch
 
 # Hyperparameters
-alpha = 0.03  # pseudo-loss learning rate
-beta = 0.1  # meta learning rate
-num_steps = 20
-meta_steps = 200
-tol = 1e-1
+alpha = 0.05  # pseudo-loss learning rate
+beta = 1.0  # meta learning rate
+num_steps = 10
+meta_steps = 500
+tol = 1e-3
 
 pseudo_optima = (0, -2)
 
@@ -86,69 +86,49 @@ Z = X**2 + Y**2
 
 # Plotting
 plt.figure(figsize=(12, 12))
-plt.contour(X, Y, -Z, levels=15, cmap="viridis")
+plt.contour(X, Y, -Z, levels=25, cmap="viridis")
 
 # Plot all pseudo-loss trajectories
 for i, traj in enumerate(all_pseudo_trajectories):
-    plt.plot(
-        traj[:, 0],
-        traj[:, 1],
-        "r--",
-        alpha=0.5 + 0.5 * (i / meta_steps),
-        label="Inner-level policy update" if i == 0 else None,
+    start = traj[0]
+    end = traj[-1]
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+
+    plt.quiver(
+        start[0],
+        start[1],
+        dx,
+        dy,
+        angles="xy",
+        scale_units="xy",
+        scale=1,
+        color="r",
+        alpha=0.8 - 0.4 * (i / meta_steps),
+        linewidth=2,
+        label="Inner-level progression" if i == 0 else None,
     )
+
 
 # Plot meta-gradient descent path
-plt.plot(
-    meta_trajectory[:, 0],
-    meta_trajectory[:, 1],
-    "bo-",
-    alpha=0.5,
-    label="Outer-level policy update",
+X = meta_trajectory[:-1, 0]  # starting x-coordinates
+Y = meta_trajectory[:-1, 1]  # starting y-coordinates
+U = meta_trajectory[1:, 0] - meta_trajectory[:-1, 0]  # dx
+V = meta_trajectory[1:, 1] - meta_trajectory[:-1, 1]  # dy
+
+plt.quiver(
+    X,
+    Y,
+    U,
+    V,
+    angles="xy",
+    scale_units="xy",
+    scale=1,
+    color="b",
+    alpha=0.8,
     linewidth=2,
+    label="Outer-level progression",
 )
-
-# Quiver: meta-gradient direction
-for i in range(meta_steps):
-    grad = -meta_grads[i]
-    norm = 1e-2 * np.linalg.norm(grad)
-    plt.quiver(
-        meta_trajectory[i, 0],
-        meta_trajectory[i, 1],
-        grad[0],
-        grad[1],
-        angles="xy",
-        scale_units="xy",
-        # scale=1.0 / (norm + 1e-6),  # prevent divide-by-zero
-        color="purple",
-        # width=0.25 * norm,
-        label=(
-            r"$\nabla_{\tilde{\theta}^{(0)}} \mathcal{J}(\tilde{\theta}^{(N)})$"
-            if i == 0
-            else None
-        ),
-    )
-
-
-# Final ∇θₙ L_meta
-for i in range(meta_steps):
-    grad_local = -local_grads[i]
-    norm_local = 1e-2 * np.linalg.norm(grad_local)
-    plt.quiver(
-        all_pseudo_trajectories[i][-1, 0],
-        all_pseudo_trajectories[i][-1, 1],
-        grad_local[0],
-        grad_local[1],
-        angles="xy",
-        scale_units="xy",
-        color="green",
-        # width=0.08 * norm_local,
-        label=(
-            r"$\nabla_{\tilde{\theta}^{(N)}} \mathcal{J}(\tilde{\theta}^{(N)})$"
-            if i == 0
-            else None
-        ),
-    )
 
 
 # Points
@@ -156,12 +136,12 @@ for i in range(meta_steps):
 plt.scatter(
     pseudo_optima[0],
     pseudo_optima[1],
-    s=550,
+    s=850,
     color="red",
     edgecolors="black",
     linewidths=1.5,
     marker="*",
-    label="Optimal Pseudo-Loss",
+    label="Intrinsic optima",
     zorder=5,
 )
 
@@ -169,23 +149,66 @@ plt.scatter(
 plt.scatter(
     0,
     0,
-    s=550,
+    s=850,
     color="green",
     edgecolors="black",
     linewidths=1.5,
     marker="*",
-    label="Optimal Loss",
+    label="Extrinsic optima",
     zorder=5,
 )
+
+# # Quiver: meta-gradient direction
+# for i in range(meta_steps):
+#     grad = -meta_grads[i]
+#     norm = 1e-2 * np.linalg.norm(grad)
+#     plt.quiver(
+#         meta_trajectory[i, 0],
+#         meta_trajectory[i, 1],
+#         grad[0],
+#         grad[1],
+#         angles="xy",
+#         scale_units="xy",
+#         # scale=1.0 / (norm + 1e-6),  # prevent divide-by-zero
+#         color="purple",
+#         # width=0.25 * norm,
+#         label=(
+#             r"$\nabla_{\tilde{\theta}^{(0)}} \mathcal{J}(\tilde{\theta}^{(N)})$"
+#             if i == 0
+#             else None
+#         ),
+#     )
+
+
+# # Final ∇θₙ L_meta
+# for i in range(meta_steps):
+#     grad_local = -local_grads[i]
+#     norm_local = 1e-2 * np.linalg.norm(grad_local)
+#     plt.quiver(
+#         all_pseudo_trajectories[i][-1, 0],
+#         all_pseudo_trajectories[i][-1, 1],
+#         grad_local[0],
+#         grad_local[1],
+#         angles="xy",
+#         scale_units="xy",
+#         color="green",
+#         # width=0.08 * norm_local,
+#         label=(
+#             r"$\nabla_{\tilde{\theta}^{(N)}} \mathcal{J}(\tilde{\theta}^{(N)})$"
+#             if i == 0
+#             else None
+#         ),
+#     )
+
 
 # Starting θ₀ (large blue star with white border)
 plt.scatter(
     meta_trajectory[0, 0],
     meta_trajectory[0, 1],
-    s=320,
-    color="skyblue",
+    s=500,
+    color="lightpink",
     edgecolors="grey",
-    linewidths=1.5,
+    linewidths=3,
     label=r"Start $\theta$",
     zorder=6,
 )
@@ -194,16 +217,16 @@ plt.scatter(
 plt.scatter(
     meta_trajectory[-1, 0],
     meta_trajectory[-1, 1],
-    s=320,
-    color="lightpink",
+    s=500,
+    color="skyblue",
     edgecolors="grey",
-    linewidths=1.5,
+    linewidths=3,
     label=r"Final $\theta$",
     zorder=5,
 )
 
 # Labels and legends
-plt.title(f"IGTPO with sub-iterations {num_steps}", fontsize=42)
+plt.title(f"IRPO with sub-iterations {num_steps}", fontsize=42)
 plt.xlabel(r"$\theta[0]$", fontsize=28)
 plt.ylabel(r"$\theta[1]$", fontsize=28)
 # Tick label sizes
@@ -213,7 +236,7 @@ plt.axis("equal")
 plt.grid(True, linestyle="--", alpha=0.6)
 
 # Place legend above the figure
-# plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.35), ncol=4, fontsize=24)
+# plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.35), ncol=3, fontsize=24)
 
 # Show the figure
 # plt.tight_layout()

@@ -26,7 +26,7 @@ EPI_LENGTH = {
     "antmaze-v0": 1000,
     "antmaze-v1": 1000,
     "fetchreach-v0": 50,
-    "fetchpush-v0": 50,
+    "fetchpush-v0": 100,
     "fetch-reachdense": 50,
 }
 
