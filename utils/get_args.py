@@ -142,7 +142,7 @@ def get_args():
         default=None,
         help="Base learning rate.",
     )
-    parser.add_argument("--gamma", type=float, default=0.99, help="Base learning rate.")
+    parser.add_argument("--gamma", type=float, default=None, help="Base learning rate.")
     parser.add_argument(
         "--load-pretrained-model",
         action="store_true",

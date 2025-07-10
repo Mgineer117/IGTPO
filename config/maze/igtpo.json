@@ -5,6 +5,7 @@
     "igtpo_actor_lr": 1e-2,
     "num_inner_updates": 5,
     "target_kl": 0.01,
+    "gamma": 0.99,
     "num_options": 6,
     "num_minibatch": 4,
     "minibatch_size": 2048,
