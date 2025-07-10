@@ -102,7 +102,7 @@ class IGTPO_Learner(Base):
         self.to(self.dtype).to(self.device)
 
     def lr_scheduler(self, fraction: float):
-        self.actor_lr = (self.init_actor_lr - 1e-4) * (1.0 - fraction) + 1e-4
+        self.actor_lr = (self.init_actor_lr - 1e-3) * (1.0 - fraction) + 1e-3
         self.steps += 1
 
     def prune(self):
