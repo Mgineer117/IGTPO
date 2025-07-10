@@ -4,8 +4,8 @@ import torch
 
 # Hyperparameters
 alpha = 0.05  # pseudo-loss learning rate
-beta = 1.0  # meta learning rate
-num_steps = 10
+beta = 0.5  # meta learning rate
+num_steps = 5
 meta_steps = 500
 tol = 1e-3
 
@@ -141,7 +141,7 @@ plt.scatter(
     edgecolors="black",
     linewidths=1.5,
     marker="*",
-    label="Intrinsic optima",
+    label="Intrinsic optimum",
     zorder=5,
 )
 
@@ -154,7 +154,7 @@ plt.scatter(
     edgecolors="black",
     linewidths=1.5,
     marker="*",
-    label="Extrinsic optima",
+    label="Extrinsic optimum",
     zorder=5,
 )
 
@@ -226,7 +226,7 @@ plt.scatter(
 )
 
 # Labels and legends
-plt.title(f"IRPO with sub-iterations {num_steps}", fontsize=42)
+plt.title(f"IRPO with {num_steps} inner-level updates", fontsize=42)
 plt.xlabel(r"$\theta[0]$", fontsize=28)
 plt.ylabel(r"$\theta[1]$", fontsize=28)
 # Tick label sizes
@@ -236,7 +236,7 @@ plt.axis("equal")
 plt.grid(True, linestyle="--", alpha=0.6)
 
 # Place legend above the figure
-# plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.35), ncol=3, fontsize=24)
+plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.35), ncol=3, fontsize=24)
 
 # Show the figure
 # plt.tight_layout()
