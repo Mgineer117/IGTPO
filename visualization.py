@@ -103,7 +103,7 @@ for i, traj in enumerate(all_pseudo_trajectories):
         angles="xy",
         scale_units="xy",
         scale=1,
-        color="r",
+        color="lightcoral",
         alpha=0.8 - 0.4 * (i / meta_steps),
         linewidth=2,
         label="Inner-level progression" if i == 0 else None,
@@ -124,7 +124,7 @@ plt.quiver(
     angles="xy",
     scale_units="xy",
     scale=1,
-    color="b",
+    color="black",
     alpha=0.8,
     linewidth=2,
     label="Outer-level progression",
@@ -137,7 +137,7 @@ plt.scatter(
     pseudo_optima[0],
     pseudo_optima[1],
     s=850,
-    color="red",
+    color="lightcoral",
     edgecolors="black",
     linewidths=1.5,
     marker="*",
@@ -150,7 +150,7 @@ plt.scatter(
     0,
     0,
     s=850,
-    color="green",
+    color="yellow",
     edgecolors="black",
     linewidths=1.5,
     marker="*",
@@ -206,7 +206,7 @@ plt.scatter(
     meta_trajectory[0, 0],
     meta_trajectory[0, 1],
     s=500,
-    color="lightpink",
+    color="red",
     edgecolors="grey",
     linewidths=3,
     label=r"Start $\theta$",
@@ -218,7 +218,7 @@ plt.scatter(
     meta_trajectory[-1, 0],
     meta_trajectory[-1, 1],
     s=500,
-    color="skyblue",
+    color="blue",
     edgecolors="grey",
     linewidths=3,
     label=r"Final $\theta$",
@@ -240,4 +240,5 @@ plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.35), ncol=3, fontsize=24)
 
 # Show the figure
 # plt.tight_layout()
-plt.show()
+# plt.show()
+plt.savefig("meta_gradient.png", bbox_inches="tight", dpi=300)
