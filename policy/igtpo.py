@@ -42,7 +42,7 @@ class IGTPO_Learner(Base):
         l2_reg: float = 1e-8,
         gamma: float = 0.99,
         gae: float = 0.9,
-        weight_option: str = "softmax-exploitation-with-exploration",
+        weight_option: str = "softmax-exploitation",
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -91,7 +91,7 @@ class IGTPO_Learner(Base):
 
         #
         self.steps = 0
-        self.epsilon = 0.3
+        self.epsilon = 0.2
         self.weight_option = weight_option
         self.contributing_indices = [
             str(i) for i in range(self.intrinsic_reward_fn.num_rewards)
