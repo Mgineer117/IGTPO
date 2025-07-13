@@ -316,8 +316,8 @@ class DDPG_Learner(Base):
         current_Q1 = self.critic1(critic_states)
         current_Q2 = self.critic2(critic_states)
 
-        critic1_loss = F.mse_loss(current_Q1, target_Q)
-        critic2_loss = F.mse_loss(current_Q2, target_Q)
+        critic1_loss = F.huber_loss(current_Q1, target_Q)
+        critic2_loss = F.huber_loss(current_Q2, target_Q)
 
         critic_loss = critic1_loss + critic2_loss
         td_error = (target_Q - current_Q1).mean().cpu()

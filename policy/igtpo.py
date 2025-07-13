@@ -562,7 +562,7 @@ class IGTPO_Learner(Base):
         self, critic: nn.Module, states: torch.Tensor, returns: torch.Tensor
     ):
         values = critic(states)
-        value_loss = self.mse_loss(values, returns)
+        value_loss = self.huber_loss(values, returns)
 
         l2_loss = sum(param.pow(2).sum() for param in critic.parameters()) * self.l2_reg
 

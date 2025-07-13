@@ -199,6 +199,7 @@ class PSNE_Learner(Base):
 
             self.optimizer.zero_grad()
             loss.backward()
+            nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
             grad_dict = self.compute_gradient_norm(
                 [self.critic],
                 ["critic"],
@@ -206,7 +207,6 @@ class PSNE_Learner(Base):
                 device=self.device,
             )
             grad_dict_list.append(grad_dict)
-            nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
             self.optimizer.step()
         grad_dict = self.average_dict_values(grad_dict_list)
 
@@ -270,7 +270,7 @@ class PSNE_Learner(Base):
 
     def critic_loss(self, states: torch.Tensor, returns: torch.Tensor):
         mb_values = self.critic(states)
-        value_loss = self.mse_loss(mb_values, returns)
+        value_loss = self.huber_loss(mb_values, returns)
         l2_loss = (
             sum(param.pow(2).sum() for param in self.critic.parameters()) * self.l2_reg
         )
