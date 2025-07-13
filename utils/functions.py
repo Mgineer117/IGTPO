@@ -19,6 +19,8 @@ EPI_LENGTH = {
     "maze-v0": 200,
     "maze-v1": 200,
     "maze-v2": 200,
+    "ant-v5": 1000,
+    "walker-v5": 1000,
     "pointmaze-v0": 500,
     "pointmaze-v1": 500,
     "pointmaze-v2": 1000,
@@ -101,6 +103,23 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
         from gridworld.envs.ctf import CtF
 
         env = CtF(grid_type=version, max_steps=max_steps)
+    elif env_name == "ant":
+        env = gym.make("Ant-v5", max_episode_steps=max_steps, render_mode="rgb_array")
+        env.max_steps = max_steps
+        args.state_dim = env.observation_space.shape
+        args.positional_indices = range(0, 105)
+        args.action_dim = env.action_space.shape[0]
+        args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
+    elif env_name == "walker":
+        env = gym.make(
+            "Walker2d-v5", max_episode_steps=max_steps, render_mode="rgb_array"
+        )
+        env.max_steps = max_steps
+        args.state_dim = env.observation_space.shape
+        args.positional_indices = range(0, 17)
+        args.action_dim = env.action_space.shape[0]
+        args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
+
     elif env_name.startswith("fetch"):
 
         gym.register_envs(gymnasium_robotics)
