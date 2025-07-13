@@ -156,14 +156,29 @@ class TRPO_Learner(Base):
                 set_flat_params(self.actor, old_params)
 
         # === critic update === #
-        value_loss, l2_loss = self.critic_loss(states, returns)
-        loss = (
-            value_loss + l2_loss + actor_loss + entropy_loss
-        )  # actor_loss and entropy_loss are already detached
-        self.optimizer.zero_grad()
-        loss.backward()
-        nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
-        self.optimizer.step()
+        critic_iteration = 5
+        batch_size = states.size(0) // critic_iteration
+        grad_dict_list = []
+        for _ in range(critic_iteration):
+            indices = torch.randperm(states.size(0))[:batch_size]
+            mb_states = states[indices]
+            mb_returns = returns[indices]
+
+            value_loss, l2_loss = self.critic_loss(mb_states, mb_returns)
+            loss = value_loss + l2_loss
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
+            grad_dict = self.compute_gradient_norm(
+                [self.critic],
+                ["critic"],
+                dir=f"{self.name}",
+                device=self.device,
+            )
+            grad_dict_list.append(grad_dict)
+            self.optimizer.step()
+        grad_dict = self.average_dict_values(grad_dict_list)
 
         # Logging
         loss_dict = {
@@ -178,9 +193,7 @@ class TRPO_Learner(Base):
             f"{self.name}/analytics/avg_rewards": torch.mean(rewards).item(),
             f"{self.name}/analytics/target_kl": self.target_kl,
             f"{self.name}/analytics/critic_lr": self.optimizer.param_groups[0]["lr"],
-            f"{self.name}/analytics/grad_norm (actor)": torch.linalg.norm(
-                grad_flat
-            ).item(),
+            f"{self.name}/grad/actor": torch.linalg.norm(grad_flat).item(),
             f"{self.name}/analytics/step_norm": torch.linalg.norm(
                 step_frac * full_step
             ).item(),
@@ -192,6 +205,7 @@ class TRPO_Learner(Base):
             device=self.device,
         )
         loss_dict.update(norm_dict)
+        loss_dict.update(grad_dict)
 
         # Cleanup
         del states, actions, rewards, terminals, old_logprobs
@@ -224,6 +238,7 @@ class TRPO_Learner(Base):
 
         # find grad of actor towards actor_loss
         actor_gradients = torch.autograd.grad(loss, self.actor.parameters())
+        actor_gradients = self.clip_grad_norm(actor_gradients, max_norm=0.5)
 
         return actor_gradients, actor_loss.detach(), entropy_loss.detach()
 

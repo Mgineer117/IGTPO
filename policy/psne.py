@@ -186,14 +186,29 @@ class PSNE_Learner(Base):
         self.states = states
 
         # === critic update === #
-        value_loss, l2_loss = self.critic_loss(states, returns)
-        loss = (
-            value_loss + l2_loss + actor_loss + entropy_loss
-        )  # actor_loss is already detached
-        self.optimizer.zero_grad()
-        loss.backward()
-        nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
-        self.optimizer.step()
+        critic_iteration = 5
+        batch_size = states.size(0) // critic_iteration
+        grad_dict_list = []
+        for _ in range(critic_iteration):
+            indices = torch.randperm(states.size(0))[:batch_size]
+            mb_states = states[indices]
+            mb_returns = returns[indices]
+
+            value_loss, l2_loss = self.critic_loss(mb_states, mb_returns)
+            loss = value_loss + l2_loss
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            grad_dict = self.compute_gradient_norm(
+                [self.critic],
+                ["critic"],
+                dir=f"{self.name}",
+                device=self.device,
+            )
+            grad_dict_list.append(grad_dict)
+            nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
+            self.optimizer.step()
+        grad_dict = self.average_dict_values(grad_dict_list)
 
         # Logging
         loss_dict = {
@@ -202,9 +217,7 @@ class PSNE_Learner(Base):
             f"{self.name}/loss/entropy_loss": entropy_loss.item(),
             f"{self.name}/loss/value_loss": value_loss.item(),
             f"{self.name}/loss/l2_loss": l2_loss.item(),
-            f"{self.name}/analytics/grad_norm (actor)": torch.linalg.norm(
-                grad_flat
-            ).item(),
+            f"{self.name}/grad/actor": torch.linalg.norm(grad_flat).item(),
             f"{self.name}/analytics/backtrack_iter": i,
             f"{self.name}/analytics/backtrack_success": int(success),
             f"{self.name}/analytics/klDivergence": kl.item(),
@@ -219,6 +232,7 @@ class PSNE_Learner(Base):
             device=self.device,
         )
         loss_dict.update(norm_dict)
+        loss_dict.update(grad_dict)
 
         # Cleanup
         del states, actions, rewards, terminals, old_logprobs
@@ -250,6 +264,7 @@ class PSNE_Learner(Base):
         actor_gradients = torch.autograd.grad(
             loss, self.actor.parameters(), retain_graph=True
         )
+        actor_gradients = self.clip_grad_norm(actor_gradients, max_norm=0.5)
 
         return actor_gradients, actor_loss.detach(), entropy_loss.detach()
 

@@ -8,8 +8,8 @@
     "gamma": 0.999,
     "num_options": 4,
     "num_minibatch": 4,
-    "minibatch_size": 8192,
-    "batch_size": 32768,
+    "minibatch_size": 2048,
+    "batch_size": 8192,
     "intrinsic_reward_mode": "allo",
     "allo_discount_factor": 0.99
 }

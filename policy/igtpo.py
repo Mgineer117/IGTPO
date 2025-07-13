@@ -381,6 +381,7 @@ class IGTPO_Learner(Base):
                 )
                 optim.zero_grad()
                 critic_loss.backward()
+                nn.utils.clip_grad_norm_(critic.parameters(), max_norm=0.5)
                 optim.step()
                 losses.append(critic_loss.item())
 
@@ -568,13 +569,3 @@ class IGTPO_Learner(Base):
         value_loss += l2_loss
 
         return value_loss
-
-    def clip_grad_norm(self, grads, max_norm, eps=1e-6):
-        # Compute total norm
-        total_norm = torch.norm(torch.stack([g.norm(2) for g in grads]), 2)
-        clip_coef = max_norm / (total_norm + eps)
-
-        if clip_coef < 1:
-            grads = tuple(g * clip_coef for g in grads)
-
-        return grads

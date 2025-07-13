@@ -137,6 +137,16 @@ class Base(nn.Module):
         flat_grad = torch.cat([g.view(-1) for g in grads])
         return flat_grad
 
+    def clip_grad_norm(self, grads, max_norm, eps=1e-6):
+        # Compute total norm
+        total_norm = torch.norm(torch.stack([g.norm(2) for g in grads]), 2)
+        clip_coef = max_norm / (total_norm + eps)
+
+        if clip_coef < 1:
+            grads = tuple(g * clip_coef for g in grads)
+
+        return grads
+
     def record_state_visitations(
         self, states: np.ndarray | torch.Tensor, alpha: float | None = None
     ):

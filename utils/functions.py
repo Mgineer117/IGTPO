@@ -106,6 +106,8 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
     elif env_name == "ant":
         env = gym.make("Ant-v5", max_episode_steps=max_steps, render_mode="rgb_array")
         env.max_steps = max_steps
+        env.get_rewards_heatmap = lambda extractor, eigenvectors: None
+
         args.state_dim = env.observation_space.shape
         args.positional_indices = range(0, 105)
         args.action_dim = env.action_space.shape[0]
