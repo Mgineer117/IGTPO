@@ -74,7 +74,7 @@ class ALLO(Base):
         self.max_duals = 100.0
         self.barrier_increase_rate = 0.1
         self.min_barrier_coefs = 0
-        self.max_barrier_coefs = 1000
+        self.max_barrier_coefs = 100
         self.discount = discount
 
         self.permutation_array = np.arange(self.d)
