@@ -69,7 +69,19 @@ def get_args():
         "--extractor-lr", type=float, default=3e-4, help="Base learning rate."
     )
     parser.add_argument(
-        "--igtpo-actor-lr", type=float, default=None, help="Base learning rate."
+        "--outer-level-update-mode",
+        type=str,
+        default="trpo",
+        help="Base learning rate.",
+    )
+    parser.add_argument(
+        "--outer-actor-lr", type=float, default=None, help="Base learning rate."
+    )
+    parser.add_argument(
+        "--inner-actor-lr", type=float, default=None, help="Base learning rate."
+    )
+    parser.add_argument(
+        "--weight-options", type=str, default="softmax", help="Base learning rate."
     )
     parser.add_argument(
         "--actor-lr", type=float, default=1e-4, help="Base learning rate."

@@ -34,7 +34,9 @@ class IGTPO_Learner(Base):
         intrinsic_reward_fn: IntrinsicRewardFunctions,
         nupdates: int,
         num_inner_updates: int,
-        actor_lr: float = 3e-4,
+        outer_level_update_mode: str = "trpo",
+        outer_actor_lr: float = 3e-4,
+        inner_actor_lr: float = 3e-4,
         critic_lr: float = 3e-4,
         eps_clip: float = 0.2,
         entropy_scaler: float = 1e-3,
@@ -42,7 +44,7 @@ class IGTPO_Learner(Base):
         l2_reg: float = 1e-8,
         gamma: float = 0.99,
         gae: float = 0.9,
-        weight_option: str = "softmax-exploitation",
+        weight_option: str = "softmax",
         device: str = "cpu",
     ):
         super().__init__(device=device)
@@ -56,8 +58,14 @@ class IGTPO_Learner(Base):
         self.is_discrete = is_discrete
         self.num_inner_updates = num_inner_updates
 
-        self.init_actor_lr = actor_lr
-        self.actor_lr = actor_lr
+        self.outer_level_update_mode = outer_level_update_mode  # "trpo" or "sgd"
+
+        self.outer_actor_lr = outer_actor_lr
+        self.inner_actor_lr = inner_actor_lr
+
+        self.init_outer_actor_lr = outer_actor_lr
+        self.init_inner_actor_lr = inner_actor_lr
+
         self.critic_lr = critic_lr
         self.nupdates = nupdates
         self.entropy_scaler = entropy_scaler
@@ -104,7 +112,7 @@ class IGTPO_Learner(Base):
         self.to(self.dtype).to(self.device)
 
     def lr_scheduler(self, fraction: float):
-        self.actor_lr = self.init_actor_lr * (1 - fraction**2)
+        self.inner_actor_lr = self.init_inner_actor_lr * (1 - fraction**2)
         self.steps += 1
 
     def prune(self):
@@ -235,7 +243,9 @@ class IGTPO_Learner(Base):
                     policy_dict[iter_idx].parameters(),
                     grad_outputs=gradients,
                 )
-                gradients = tuple(g - self.actor_lr * h for g, h in zip(gradients, Hv))
+                gradients = tuple(
+                    g - self.inner_actor_lr * h for g, h in zip(gradients, Hv)
+                )
             outer_gradients.append(gradients)
 
         # Average across vectors
@@ -246,12 +256,12 @@ class IGTPO_Learner(Base):
         prob = np.random.rand()
         epsilon = self.epsilon * (1 - fraction)
 
-        if self.weight_option == "argmax-exploitation":
+        if self.weight_option == "argmax":
             weights = np.zeros_like(self.probability_history)
             weights[np.argmax(self.probability_history)] = 1.0
-        elif self.weight_option == "softmax-exploitation":
+        elif self.weight_option == "softmax":
             weights = self.probability_history
-        elif self.weight_option == "softmax-exploitation-with-exploration":
+        elif self.weight_option == "softmax-with-randomness":
             if prob < epsilon or np.all(self.probability_history == 0.0):
                 # Uniform exploration
                 # weights = np.ones_like(self.probability_history)
@@ -299,7 +309,7 @@ class IGTPO_Learner(Base):
         loss_dict[f"{self.name}/analytics/Backtrack_iter"] = backtrack_iter
         loss_dict[f"{self.name}/analytics/Backtrack_success"] = backtrack_success
         loss_dict[f"{self.name}/analytics/target_kl"] = self.target_kl
-        loss_dict[f"{self.name}/analytics/igtpo_actor_lr"] = self.actor_lr
+        loss_dict[f"{self.name}/analytics/inner_actor_lr"] = self.inner_actor_lr
 
         loss_dict.update(self.intrinsic_reward_fn.loss_dict)
 
@@ -423,7 +433,7 @@ class IGTPO_Learner(Base):
         # 6. Manual SGD update (structured, not flat)
         with torch.no_grad():
             for p, g in zip(actor_clone.parameters(), gradients):
-                p -= self.actor_lr * g
+                p -= self.inner_actor_lr * g
 
         # 8. Logging
         actor_grad_norm = torch.sqrt(
@@ -469,48 +479,56 @@ class IGTPO_Learner(Base):
         backtrack_iters: int = 15,
         backtrack_coeff: float = 0.7,
     ):
-        states = self.preprocess_state(states)
+        if self.outer_level_update_mode == "trpo":
+            states = self.preprocess_state(states)
 
-        old_actor = deepcopy(self.actor)
+            old_actor = deepcopy(self.actor)
 
-        # Flatten meta-gradients
-        meta_grad_flat = torch.cat([g.view(-1) for g in grads]).detach()
+            # Flatten meta-gradients
+            meta_grad_flat = torch.cat([g.view(-1) for g in grads]).detach()
 
-        # KL function (closure)
-        def kl_fn():
-            return compute_kl(old_actor, self.actor, states)
+            # KL function (closure)
+            def kl_fn():
+                return compute_kl(old_actor, self.actor, states)
 
-        # Define HVP function
-        Hv = lambda v: hessian_vector_product(kl_fn, self.actor, damping, v)
+            # Define HVP function
+            Hv = lambda v: hessian_vector_product(kl_fn, self.actor, damping, v)
 
-        # Compute step direction with CG
-        step_dir = conjugate_gradients(Hv, meta_grad_flat, nsteps=10)
+            # Compute step direction with CG
+            step_dir = conjugate_gradients(Hv, meta_grad_flat, nsteps=10)
 
-        # Compute step size to satisfy KL constraint
-        sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
-        lm = torch.sqrt(sAs / self.target_kl)
-        full_step = step_dir / (lm + 1e-8)
+            # Compute step size to satisfy KL constraint
+            sAs = 0.5 * torch.dot(step_dir, Hv(step_dir))
+            lm = torch.sqrt(sAs / self.target_kl)
+            full_step = step_dir / (lm + 1e-8)
 
-        # Apply update
-        with torch.no_grad():
-            old_params = flat_params(self.actor)
+            # Apply update
+            with torch.no_grad():
+                old_params = flat_params(self.actor)
 
-            # Backtracking line search
-            success = False
-            for i in range(backtrack_iters):
-                step_frac = backtrack_coeff**i
-                new_params = old_params - step_frac * full_step
-                set_flat_params(self.actor, new_params)
-                kl = compute_kl(old_actor, self.actor, states)
+                # Backtracking line search
+                success = False
+                for i in range(backtrack_iters):
+                    step_frac = backtrack_coeff**i
+                    new_params = old_params - step_frac * full_step
+                    set_flat_params(self.actor, new_params)
+                    kl = compute_kl(old_actor, self.actor, states)
 
-                if kl <= self.target_kl:
-                    success = True
-                    break
+                    if kl <= self.target_kl:
+                        success = True
+                        break
 
-            if not success:
-                set_flat_params(self.actor, old_params)
+                if not success:
+                    set_flat_params(self.actor, old_params)
 
-        return i, success
+            return i, success
+        elif self.outer_level_update_mode == "sgd":
+            # SGD update
+            with torch.no_grad():
+                for p, g in zip(self.actor.parameters(), grads):
+                    p -= self.outer_actor_lr * g
+
+            return 0, True
 
     def clone_actor(self, actor: nn.Module):
         """

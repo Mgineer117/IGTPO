@@ -21,6 +21,7 @@ EPI_LENGTH = {
     "maze-v2": 200,
     "ant-v5": 1000,
     "walker-v5": 1000,
+    "humanoidstandup-v5": 1000,
     "pointmaze-v0": 500,
     "pointmaze-v1": 500,
     "pointmaze-v2": 1000,
@@ -119,6 +120,15 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
         env.max_steps = max_steps
         args.state_dim = env.observation_space.shape
         args.positional_indices = range(0, 17)
+        args.action_dim = env.action_space.shape[0]
+        args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
+    elif env_name == "humanoidstandup":
+        env = gym.make(
+            "HumanoidStandup-v5", max_episode_steps=max_steps, render_mode="rgb_array"
+        )
+        env.max_steps = max_steps
+        args.state_dim = env.observation_space.shape
+        args.positional_indices = range(0, 348)
         args.action_dim = env.action_space.shape[0]
         args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
 
