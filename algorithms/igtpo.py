@@ -91,7 +91,7 @@ class IGTPO_Algorithm(nn.Module):
             outer_actor_lr=self.args.outer_actor_lr,
             inner_actor_lr=self.args.inner_actor_lr,
             critic_lr=self.args.critic_lr,
-            weight_options=self.args.weight_options,
+            weight_option=self.args.weight_option,
             eps_clip=self.args.eps_clip,
             entropy_scaler=self.args.entropy_scaler,
             target_kl=self.args.target_kl,

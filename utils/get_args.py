@@ -81,7 +81,7 @@ def get_args():
         "--inner-actor-lr", type=float, default=None, help="Base learning rate."
     )
     parser.add_argument(
-        "--weight-options", type=str, default="softmax", help="Base learning rate."
+        "--weight-option", type=str, default="softmax", help="Base learning rate."
     )
     parser.add_argument(
         "--actor-lr", type=float, default=1e-4, help="Base learning rate."
