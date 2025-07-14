@@ -182,19 +182,20 @@ class FetchWrapper(gym.Wrapper):
                 dg[2],
                 color="yellow",
                 edgecolors="black",
-                s=200,
+                s=500,
                 marker="*",
                 label="Desired Goal",
             )
 
-            ax.set_title(
-                f"Rewards for Eigenvector {eigenvector_idx}-{eigenvector_sign}"
-            )
-            ax.set_xlabel("X")
-            ax.set_ylabel("Y")
-            ax.set_zlabel("Z")
-            plt.colorbar(sc, ax=ax, label="Normalized Reward")
-            ax.legend()
+            # ax.set_title(
+            #     f"Rewards for Eigenvector {eigenvector_idx}-{eigenvector_sign}"
+            # )
+            ax.set_xlabel("X", fontsize=18)
+            ax.set_ylabel("Y", fontsize=18)
+            ax.set_zlabel("Z", fontsize=18)
+            ax.legend(fontsize=14)
+
+            # plt.colorbar(sc, ax=ax, label="Normalized Reward")
 
             images.append(fig)
             plt.close()

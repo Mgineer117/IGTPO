@@ -38,7 +38,6 @@ class IRPO_Learner(Base):
         l2_reg: float = 1e-8,
         gamma: float = 0.99,
         gae: float = 0.9,
-        eps_clip: float = 0.2,
         weight_option: str = "softmax",
         device: str = "cpu",
     ):
@@ -69,7 +68,6 @@ class IRPO_Learner(Base):
         self.gae = gae
         # outer-level KL constraint
         self.target_kl = target_kl
-        self.eps_clip = eps_clip
         # critic l2 regularization
         self.l2_reg = l2_reg
 
@@ -130,29 +128,26 @@ class IRPO_Learner(Base):
 
         # === Initialize the logging parameters === #
         total_timesteps, total_sample_time, total_update_time = 0, 0, 0
-        policy_dict, gradient_dict = {}, {}
 
         # === initialize the policy dict with outer-level policy === #
-        for i in range(self.intrinsic_reward_fn.num_rewards):
-            actor_idx = f"{i}_{0}"
-            policy_dict[actor_idx] = deepcopy(self.actor)
+        self.actor_list = nn.ModuleList(
+            [deepcopy(self.actor) for _ in range(self.intrinsic_reward_fn.num_rewards)]
+        )
 
         # === SAMPLE FOR INITIAL UPDATE === #
         init_batch, sample_time = sampler.collect_samples(env, self.actor, seed)
-        self.actor.record_state_visitations(init_batch["states"], alpha=1.0)
         total_timesteps += init_batch["states"].shape[0]
 
         # === UPDATE VIA GRADIENT CHAIN === #
         loss_dict_list = []
+        outer_gradients = []
         for i in range(self.intrinsic_reward_fn.num_rewards):
             for j in range(self.num_inner_updates):
+                # === Select the actor === #
+                actor = self.actor_list[i]
+
                 # === Identify this is inner or outer-level update === #
                 prefix = "outer" if j == self.num_inner_updates - 1 else "inner"
-
-                # === Define actor === #
-                actor_idx = f"{i}_{j}"
-                future_actor_idx = f"{i}_{j+1}"
-                actor = policy_dict[actor_idx]
 
                 # === Sample batch for corresponding actor === #
                 if prefix == "inner":
@@ -165,7 +160,6 @@ class IRPO_Learner(Base):
                         timesteps = batch["states"].shape[0]
                 else:
                     batch, sample_time = sampler.collect_samples(env, actor, seed)
-                    actor.record_state_visitations(batch["states"], alpha=1.0)
                     timesteps = batch["states"].shape[0]
 
                 # === Update probability history using exponential moving average === #
@@ -179,18 +173,17 @@ class IRPO_Learner(Base):
                 (
                     loss_dict,
                     update_time,
-                    actor_clone,
-                    gradients,
+                    actor_grad,
                     avg_intrinsic_rewards,
                 ) = self.learn_model(actor, batch, i, prefix)
+
+                if prefix == "outer":
+                    outer_gradients.append(actor_grad)
 
                 # === Logging the outputs of inner-level update === #
                 # This is important as it retains the actor with computational graph
                 # that will be used to backpropagate the gradients
                 loss_dict_list.append(loss_dict)
-
-                gradient_dict[actor_idx] = gradients
-                policy_dict[future_actor_idx] = actor_clone
 
                 # === Logging for intrinsic reward improvement === #
                 if j == 0:
@@ -202,22 +195,6 @@ class IRPO_Learner(Base):
                 total_timesteps += timesteps
                 total_sample_time += sample_time
                 total_update_time += update_time
-
-        # === Backpropagation === #
-        outer_gradients = []
-        for i in range(self.intrinsic_reward_fn.num_rewards):
-            gradients = gradient_dict[f"{i}_{self.num_inner_updates - 1}"]
-            for j in reversed(range(self.num_inner_updates - 1)):
-                iter_idx = f"{i}_{j}"
-                Hv = grad(
-                    gradient_dict[iter_idx],
-                    policy_dict[iter_idx].parameters(),
-                    grad_outputs=gradients,
-                )
-                gradients = tuple(
-                    g - self.inner_actor_lr * h for g, h in zip(gradients, Hv)
-                )
-            outer_gradients.append(gradients)
 
         # === Identify the most contributing index for logging === #
         most_contributing_index = np.argmax(self.probability_history)
@@ -243,14 +220,6 @@ class IRPO_Learner(Base):
             states=init_batch["states"],
             grads=gradients,
         )
-
-        # === Logging a visitation maps of the base policy === #
-        visitation_dict = {}
-        visitation_dict["visitation map (outer)"] = self.actor.state_visitation
-        for i in range(self.intrinsic_reward_fn.num_rewards):
-            idx = f"{i}_{self.num_inner_updates}"
-            name = f"visitation map ({self.contributing_indices[i]})"
-            visitation_dict[name] = policy_dict[idx].state_visitation
 
         # === Make dictionary for logging === #
         loss_dict = self.average_dict_values(loss_dict_list)
@@ -282,7 +251,7 @@ class IRPO_Learner(Base):
                 intrinsic_avg_rewards_improvement
             )
 
-        return loss_dict, total_timesteps, visitation_dict
+        return loss_dict, total_timesteps, None
 
     def learn_model(self, actor: nn.Module, batch: dict, i: int, prefix: str):
         # === Set it to training mode === #
@@ -295,7 +264,6 @@ class IRPO_Learner(Base):
         states = self.preprocess_state(batch["states"])
         next_states = self.preprocess_state(batch["next_states"])
         actions = self.preprocess_state(batch["actions"])
-        old_logprobs = self.preprocess_state(batch["logprobs"])
         extrinsic_rewards = self.preprocess_state(batch["rewards"])
         intrinsic_rewards, source = self.intrinsic_reward_fn(states, next_states, i)
         terminals = self.preprocess_state(batch["terminals"])
@@ -312,22 +280,13 @@ class IRPO_Learner(Base):
             )
         with torch.no_grad():
             intrinsic_values = self.intrinsic_critics[i](states)
-            if source == "drnd":
-                intrinsic_advantages, intrinsic_returns = estimate_advantages(
-                    intrinsic_rewards,
-                    torch.zeros_like(terminals),
-                    intrinsic_values,
-                    gamma=self.gamma,
-                    gae=self.gae,
-                )
-            else:
-                intrinsic_advantages, intrinsic_returns = estimate_advantages(
-                    intrinsic_rewards,
-                    terminals,
-                    intrinsic_values,
-                    gamma=1.0,
-                    gae=self.gae,
-                )
+            intrinsic_advantages, intrinsic_returns = estimate_advantages(
+                intrinsic_rewards,
+                terminals,
+                intrinsic_values,
+                gamma=1.0,
+                gae=self.gae,
+            )
 
         # === Prepare for critic learning === #
         batch_size = states.shape[0]
@@ -372,14 +331,13 @@ class IRPO_Learner(Base):
         intrinsic_critic_loss = sum(intrinsic_losses) / len(intrinsic_losses)
 
         # === Learn exploratory policy === #
-        actor_clone = deepcopy(actor)
         advantages = extrinsic_advantages if prefix == "outer" else intrinsic_advantages
         normalized_advantages = (advantages - advantages.mean()) / (
             advantages.std() + 1e-8
         )
 
         actor_loss, entropy_loss = self.actor_loss(
-            actor, states, actions, old_logprobs, normalized_advantages
+            actor, states, actions, normalized_advantages, prefix
         )
 
         if prefix == "outer":
@@ -390,22 +348,18 @@ class IRPO_Learner(Base):
             # this is because intrinsic reward is already abundant
             loss = actor_loss
 
-        # Compute gradients
-        gradients = torch.autograd.grad(loss, actor.parameters(), create_graph=True)
+        # === Update actor === #
+        gradients = torch.autograd.grad(loss, actor.parameters())
         gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
         # Manual SGD update (structured, not flat)
         with torch.no_grad():
-            for p, g in zip(actor_clone.parameters(), gradients):
+            for p, g in zip(actor.parameters(), gradients):
                 p -= self.inner_actor_lr * g
 
-        # Logging
         actor_grad_norm = torch.sqrt(
             sum(g.pow(2).sum() for g in gradients if g is not None)
         )
-
-        # Update of intrinsic reward if necessary (DRND only)
-        self.intrinsic_reward_fn.learn(states, next_states, i, source)
 
         loss_dict = {
             f"{self.name}/loss/actor_loss": actor_loss.item(),
@@ -430,7 +384,6 @@ class IRPO_Learner(Base):
         return (
             loss_dict,
             update_time,
-            actor_clone,
             gradients,
             torch.mean(intrinsic_rewards).item(),
         )
@@ -499,21 +452,19 @@ class IRPO_Learner(Base):
         actor: nn.Module,
         states: torch.Tensor,
         actions: torch.Tensor,
-        old_logprobs: torch.Tensor,
         advantages: torch.Tensor,
+        prefix: str,
     ):
-        # === PPO UPDATE STYLE === #
-        # off-policy correction term should be 1
         _, metaData = actor(states)
         logprobs = actor.log_prob(metaData["dist"], actions)
         entropy = actor.entropy(metaData["dist"])
-        ratios = torch.exp(logprobs - old_logprobs)
-
-        surr1 = ratios * advantages
-        surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
-
-        actor_loss = -torch.min(surr1, surr2).mean()
-        # actor_loss = -(logprobs * advantages).mean()
+        if prefix == "inner":
+            ratios = logprobs
+        else:
+            _, base_infos = self.actor(states, deterministic=True)
+            old_logprobs = base_infos["logprobs"]
+            ratios = torch.exp(logprobs - old_logprobs)
+        actor_loss = -(ratios * advantages).mean()
         entropy_loss = self.entropy_scaler * entropy.mean()
 
         return actor_loss, entropy_loss

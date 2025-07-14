@@ -120,17 +120,20 @@ class IRPOTrainer:
 
                     plt.close()
 
-                    for key, value in visitation_dict.items():
-                        visitation_map = value
-                        vmin, vmax = visitation_map.min(), visitation_map.max()
-                        visitation_map = (visitation_map - vmin) / (vmax - vmin + 1e-8)
-                        visitation_map = self.visitation_to_rgb(visitation_map)
-                        self.write_image(
-                            image=visitation_map,
-                            step=current_step,
-                            logdir=f"Image",
-                            name=key,
-                        )
+                    if visitation_dict is not None:
+                        for key, value in visitation_dict.items():
+                            visitation_map = value
+                            vmin, vmax = visitation_map.min(), visitation_map.max()
+                            visitation_map = (visitation_map - vmin) / (
+                                vmax - vmin + 1e-8
+                            )
+                            visitation_map = self.visitation_to_rgb(visitation_map)
+                            self.write_image(
+                                image=visitation_map,
+                                step=current_step,
+                                logdir=f"Image",
+                                name=key,
+                            )
 
                     self.write_log(eval_dict, step=current_step, eval_log=True)
                     self.write_image(
