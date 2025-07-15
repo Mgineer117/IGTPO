@@ -111,6 +111,17 @@ class IRPO_Learner(Base):
         # ensure the actor is in desireable dtype and device
         self.to(self.dtype).to(self.device)
 
+    def forward(self, state: np.ndarray, deterministic: bool = False):
+        state = self.preprocess_state(state)
+        a, metaData = self.actor(state, deterministic=deterministic)
+
+        return a, {
+            "probs": metaData["probs"],
+            "logprobs": metaData["logprobs"],
+            "entropy": metaData["entropy"],
+            "dist": metaData["dist"],
+        }
+
     def learn(self, env: gym.Env, sampler: OnlineSampler, seed: int):
         # === Set it to training mode === #
         self.train()
