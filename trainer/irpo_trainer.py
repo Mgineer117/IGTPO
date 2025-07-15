@@ -1,4 +1,3 @@
-import gc
 import os
 import time
 from collections import deque
@@ -8,39 +7,22 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-from torch.autograd import grad
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from log.wandb_logger import WandbLogger
-from policy.igtpo import IGTPO_Learner
 from policy.layers.base import Base
-from policy.layers.ppo_networks import PPO_Actor
-from utils.rl import estimate_advantages
 from utils.sampler import OnlineSampler
 
 
-def compare_weights(policy1, policy2):
-    diffs = {}
-    for (name1, param1), (name2, param2) in zip(
-        policy1.named_parameters(), policy2.named_parameters()
-    ):
-        assert name1 == name2, "Parameter names do not match"
-        diff = torch.norm(param1.data - param2.data).item()
-        diffs[name1] = diff
-    return diffs
-
-
 # model-free policy trainer
-class IGTPOTrainer:
+class IRPOTrainer:
     def __init__(
         self,
         env: gym.Env,
         policy: Base,
-        outer_sampler: OnlineSampler,
-        inner_sampler: OnlineSampler,
+        sampler: OnlineSampler,
         logger: WandbLogger,
         writer: SummaryWriter,
         init_timesteps: int = 0,
@@ -54,8 +36,7 @@ class IGTPOTrainer:
         self.env = env
         self.policy = policy
 
-        self.outer_sampler = outer_sampler
-        self.inner_sampler = inner_sampler
+        self.sampler = sampler
         self.eval_num = eval_num
 
         self.logger = logger
@@ -66,10 +47,6 @@ class IGTPOTrainer:
         self.timesteps = timesteps
 
         self.log_interval = log_interval
-        self.prune_interval = int(
-            (self.timesteps / 3) / self.policy.intrinsic_reward_fn.num_rewards
-        )
-        self.trim_interval = int(self.timesteps / (self.policy.num_inner_updates - 3))
         self.eval_interval = int(self.timesteps / self.log_interval)
 
         # initialize the essential training components
@@ -88,8 +65,6 @@ class IGTPOTrainer:
 
         # Train loop
         eval_idx = 0
-        prune_idx = 0  # / self.prune_interval
-        trim_idx = 0  # int(self.timesteps / 2) / self.trim_interval
 
         with tqdm(
             total=self.timesteps + self.init_timesteps,
@@ -98,35 +73,17 @@ class IGTPOTrainer:
         ) as pbar:
             while pbar.n < self.timesteps + self.init_timesteps:
                 current_step = pbar.n
-                fraction = current_step / (self.timesteps + self.init_timesteps)
 
                 loss_dict, timesteps, visitation_dict = self.policy.learn(
                     self.env,
-                    self.outer_sampler,
-                    self.inner_sampler,
+                    self.sampler,
                     self.seed,
-                    fraction,
                 )
-                # print(loss_dict)
                 current_step = pbar.n + timesteps
 
                 # === Update progress === #
-                # self.policy.probabilities  # (n,) ndarray
                 self.write_log(loss_dict, current_step)
                 pbar.update(timesteps)
-
-                # === reduce igtpo lr === #
-                # self.policy.lr_scheduler(fraction)
-
-                # === PRUNE TWIG === #
-                # if current_step > self.prune_interval * (prune_idx + 1):
-                #     self.policy.prune()
-                #     prune_idx += 1
-
-                # === TRIM TWIG === #
-                # if current_step > self.trim_interval * (trim_idx + 1):
-                #     self.policy.trim()
-                #     trim_idx += 1
 
                 # === EVALUATIONS === #
                 if current_step >= self.eval_interval * (eval_idx + 1):

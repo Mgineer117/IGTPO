@@ -1,14 +1,10 @@
-import os
-import pickle
 import time
 from copy import deepcopy
-from typing import Callable
 
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
-from torch import inverse, matmul, transpose
 from torch.autograd import grad
 
 from policy.layers.base import Base
@@ -25,20 +21,18 @@ from utils.rl import (
 from utils.sampler import OnlineSampler
 
 
-class IGTPO_Learner(Base):
+class IRPO_Learner(Base):
     def __init__(
         self,
         actor: PPO_Actor,
         critic: PPO_Critic,
         is_discrete: bool,
         intrinsic_reward_fn: IntrinsicRewardFunctions,
-        nupdates: int,
         num_inner_updates: int,
         outer_level_update_mode: str = "trpo",
         outer_actor_lr: float = 3e-4,
         inner_actor_lr: float = 3e-4,
         critic_lr: float = 3e-4,
-        eps_clip: float = 0.2,
         entropy_scaler: float = 1e-3,
         target_kl: float = 0.03,
         l2_reg: float = 1e-8,
@@ -49,38 +43,41 @@ class IGTPO_Learner(Base):
     ):
         super().__init__(device=device)
 
-        # constants
-        self.name = "IGTPO"
+        # define name for future logging
+        self.name = "IRPO"
         self.device = device
 
+        # storing parameters
         self.state_dim = actor.state_dim
         self.action_dim = actor.action_dim
         self.is_discrete = is_discrete
+
+        # IRPO parameters
+        self.outer_level_update_mode = outer_level_update_mode  # "trpo" or "sgd"
         self.num_inner_updates = num_inner_updates
 
-        self.outer_level_update_mode = outer_level_update_mode  # "trpo" or "sgd"
-
+        # only applicable when outer_level_update_mode is "sgd"
         self.outer_actor_lr = outer_actor_lr
+        # lr to derive the exploratiry policy
         self.inner_actor_lr = inner_actor_lr
-
-        self.init_outer_actor_lr = outer_actor_lr
-        self.init_inner_actor_lr = inner_actor_lr
-
         self.critic_lr = critic_lr
-        self.nupdates = nupdates
+
+        # define algorithmic parameters
         self.entropy_scaler = entropy_scaler
         self.gamma = gamma
         self.gae = gae
-        self.eps_clip = eps_clip
-        self.init_target_kl = target_kl
+        # outer-level KL constraint
         self.target_kl = target_kl
+        # critic l2 regularization
         self.l2_reg = l2_reg
 
-        # define nn.Module
+        # define neural networks
         self.actor = actor
         self.critic = critic
+        # intrinsic reward function class
         self.intrinsic_reward_fn = intrinsic_reward_fn
 
+        # define critics for extrinsic and intrinsic rewards
         self.extrinsic_critics = nn.ModuleList(
             [deepcopy(self.critic) for _ in range(self.intrinsic_reward_fn.num_rewards)]
         )
@@ -88,6 +85,7 @@ class IGTPO_Learner(Base):
             [deepcopy(self.critic) for _ in range(self.intrinsic_reward_fn.num_rewards)]
         )
 
+        # define optimizers for extrinsic and intrinsic critics
         self.extrinsic_critic_optimizers = [
             torch.optim.Adam(critic.parameters(), lr=self.critic_lr)
             for critic in self.extrinsic_critics
@@ -97,72 +95,27 @@ class IGTPO_Learner(Base):
             for critic in self.intrinsic_critics
         ]
 
-        #
-        self.steps = 0
-        self.epsilon = 0.2
+        # method of gradient aggregation e,g., softmax vs argmax
         self.weight_option = weight_option
+        # for logging which index of intrinsic reward is most contributing for extrinsic optimality
         self.contributing_indices = [
             str(i) for i in range(self.intrinsic_reward_fn.num_rewards)
         ]
+        # for logging how much improvement of intrinsic rewards during inner-level updates
         self.init_avg_intrinsic_rewards = {}
         self.final_avg_intrinsic_rewards = {}
         self.probability_history = np.array(
             [0.0 for _ in range(self.intrinsic_reward_fn.num_rewards)]
         )
+
+        # ensure the actor is in desireable dtype and device
         self.to(self.dtype).to(self.device)
 
-    def lr_scheduler(self, fraction: float):
-        self.inner_actor_lr = self.init_inner_actor_lr * (1 - fraction**2)
-        self.steps += 1
-
-    def prune(self):
-        # np.all(self.probability_history > 0.0) and len(self.probability_history) > 1
-        if len(self.probability_history) > 1:  #   and len(tied_indices) == 1:
-            least_contributing_index = np.argmin(self.probability_history)
-
-            # === PRUNE CRITICS === #
-            del self.extrinsic_critics[least_contributing_index]
-            del self.intrinsic_critics[least_contributing_index]
-
-            del self.extrinsic_critic_optimizers[least_contributing_index]
-            del self.intrinsic_critic_optimizers[least_contributing_index]
-
-            # === PRUNE ETC. === #
-            del self.contributing_indices[least_contributing_index]
-
-            self.probability_history = np.delete(
-                self.probability_history, least_contributing_index
-            )
-
-            # === SEND PRUNE SIGNAL TO INTRINSIC REWARD CLASS === #
-            self.intrinsic_reward_fn.prune(least_contributing_index)
-
-    def trim(self):
-        if self.num_inner_updates > 2:
-            self.num_inner_updates -= 1
-
-    def forward(self, state: np.ndarray, deterministic: bool = False):
-        state = self.preprocess_state(state)
-        a, metaData = self.actor(state, deterministic=deterministic)
-
-        return a, {
-            "probs": metaData["probs"],
-            "logprobs": metaData["logprobs"],
-            "entropy": metaData["entropy"],
-            "dist": metaData["dist"],
-        }
-
-    def learn(
-        self,
-        env: gym.Env,
-        outer_sampler: OnlineSampler,
-        inner_sampler: OnlineSampler,
-        seed: int,
-        fraction: float,
-    ):
-        """Performs a single training step using PPO, incorporating all reference training steps."""
+    def learn(self, env: gym.Env, sampler: OnlineSampler, seed: int):
+        # === Set it to training mode === #
         self.train()
 
+        # === Initialize the logging parameters === #
         total_timesteps, total_sample_time, total_update_time = 0, 0, 0
         policy_dict, gradient_dict = {}, {}
 
@@ -172,7 +125,7 @@ class IGTPO_Learner(Base):
             policy_dict[actor_idx] = deepcopy(self.actor)
 
         # === SAMPLE FOR INITIAL UPDATE === #
-        init_batch, sample_time = inner_sampler.collect_samples(env, self.actor, seed)
+        init_batch, sample_time = sampler.collect_samples(env, self.actor, seed)
         self.actor.record_state_visitations(init_batch["states"], alpha=1.0)
         total_timesteps += init_batch["states"].shape[0]
 
@@ -180,59 +133,64 @@ class IGTPO_Learner(Base):
         loss_dict_list = []
         for i in range(self.intrinsic_reward_fn.num_rewards):
             for j in range(self.num_inner_updates):
-                # decide update
+                # === Identify this is inner or outer-level update === #
                 prefix = "outer" if j == self.num_inner_updates - 1 else "inner"
 
-                # choose actor
+                # === Define actor === #
                 actor_idx = f"{i}_{j}"
                 future_actor_idx = f"{i}_{j+1}"
                 actor = policy_dict[actor_idx]
 
+                # === Sample batch for corresponding actor === #
                 if prefix == "inner":
                     if j == 0:
                         batch = deepcopy(init_batch)
                         sample_time = 0
                         timesteps = 0
                     else:
-                        batch, sample_time = inner_sampler.collect_samples(
-                            env, actor, seed
-                        )
+                        batch, sample_time = sampler.collect_samples(env, actor, seed)
                         timesteps = batch["states"].shape[0]
-                else:  # prefix == "outer"
-                    batch, sample_time = outer_sampler.collect_samples(env, actor, seed)
+                else:
+                    batch, sample_time = sampler.collect_samples(env, actor, seed)
                     actor.record_state_visitations(batch["states"], alpha=1.0)
                     timesteps = batch["states"].shape[0]
 
+                # === Update probability history using exponential moving average === #
                 beta = 0.95
                 self.probability_history[i] = (
                     beta * self.probability_history[i]
                     + (1 - beta) * batch["rewards"].mean()
                 )
 
+                # === Perform an inner-level update === #
                 (
                     loss_dict,
                     update_time,
                     actor_clone,
                     gradients,
                     avg_intrinsic_rewards,
-                ) = self.learn_model(actor, batch, i, fraction, prefix)
+                ) = self.learn_model(actor, batch, i, prefix)
 
-                # logging
+                # === Logging the outputs of inner-level update === #
+                # This is important as it retains the actor with computational graph
+                # that will be used to backpropagate the gradients
                 loss_dict_list.append(loss_dict)
 
                 gradient_dict[actor_idx] = gradients
                 policy_dict[future_actor_idx] = actor_clone
 
+                # === Logging for intrinsic reward improvement === #
                 if j == 0:
                     self.init_avg_intrinsic_rewards[str(i)] = avg_intrinsic_rewards
                 elif j == self.num_inner_updates - 1:
                     self.final_avg_intrinsic_rewards[str(i)] = avg_intrinsic_rewards
 
+                # === accumulate the total timespteps and times for fairness === #
                 total_timesteps += timesteps
                 total_sample_time += sample_time
                 total_update_time += update_time
 
-        # === Meta-gradient computation === #
+        # === Backpropagation === #
         outer_gradients = []
         for i in range(self.intrinsic_reward_fn.num_rewards):
             gradients = gradient_dict[f"{i}_{self.num_inner_updates - 1}"]
@@ -248,43 +206,32 @@ class IGTPO_Learner(Base):
                 )
             outer_gradients.append(gradients)
 
-        # Average across vectors
+        # === Identify the most contributing index for logging === #
         most_contributing_index = np.argmax(self.probability_history)
-        outer_gradients_transposed = list(zip(*outer_gradients))  # Group by parameter
-        # gradients = outer_gradients[most_contributing_index]
 
-        prob = np.random.rand()
-        epsilon = self.epsilon * (1 - fraction)
+        # === Group by parameter=== #
+        outer_gradients_transposed = list(zip(*outer_gradients))
 
+        # === Gradient aggregation === #
         if self.weight_option == "argmax":
             weights = np.zeros_like(self.probability_history)
             weights[np.argmax(self.probability_history)] = 1.0
         elif self.weight_option == "softmax":
             weights = self.probability_history
-        elif self.weight_option == "softmax-with-randomness":
-            if prob < epsilon or np.all(self.probability_history == 0.0):
-                # Uniform exploration
-                # weights = np.ones_like(self.probability_history)
-                # Random exploration
-                weights = np.random.rand(len(self.probability_history))
-            else:
-                # Exploitation: use normalized probability_history
-                weights = self.probability_history
-
-        weights = weights / (weights.sum() + 1e-8)
+            weights = weights / (weights.sum() + 1e-8)
 
         gradients = tuple(
             sum(w * g for w, g in zip(weights, grads_per_param))
             for grads_per_param in outer_gradients_transposed
         )
 
-        # === TRPO update === #
+        # === Perform outer-level update === #
         backtrack_iter, backtrack_success = self.learn_outer_level_polocy(
             states=init_batch["states"],
             grads=gradients,
         )
 
-        # === COLLECT VISITATION MAPS === #
+        # === Logging a visitation maps of the base policy === #
         visitation_dict = {}
         visitation_dict["visitation map (outer)"] = self.actor.state_visitation
         for i in range(self.intrinsic_reward_fn.num_rewards):
@@ -292,7 +239,7 @@ class IGTPO_Learner(Base):
             name = f"visitation map ({self.contributing_indices[i]})"
             visitation_dict[name] = policy_dict[idx].state_visitation
 
-        # === Logging === #
+        # === Make dictionary for logging === #
         loss_dict = self.average_dict_values(loss_dict_list)
         loss_dict[f"{self.name}/analytics/avg_extrinsic_rewards"] = init_batch[
             "rewards"
@@ -324,23 +271,22 @@ class IGTPO_Learner(Base):
 
         return loss_dict, total_timesteps, visitation_dict
 
-    def learn_model(
-        self, actor: nn.Module, batch: dict, i: int, fraction: float, prefix: str
-    ):
-        """Performs a single training step using PPO, incorporating all reference training steps."""
+    def learn_model(self, actor: nn.Module, batch: dict, i: int, prefix: str):
+        # === Set it to training mode === #
         self.train()
+
+        # === Initialize the time === #
         t0 = time.time()
 
-        # 0. Prepare ingredients
+        # === Prepare ingredients === #
         states = self.preprocess_state(batch["states"])
         next_states = self.preprocess_state(batch["next_states"])
         actions = self.preprocess_state(batch["actions"])
         extrinsic_rewards = self.preprocess_state(batch["rewards"])
         intrinsic_rewards, source = self.intrinsic_reward_fn(states, next_states, i)
         terminals = self.preprocess_state(batch["terminals"])
-        old_logprobs = self.preprocess_state(batch["logprobs"])
 
-        # 1. Compute advantages and returns
+        # === Compute advantages and returns === #
         with torch.no_grad():
             extrinsic_values = self.extrinsic_critics[i](states)
             extrinsic_advantages, extrinsic_returns = estimate_advantages(
@@ -369,54 +315,57 @@ class IGTPO_Learner(Base):
                     gae=self.gae,
                 )
 
-        # 1. Learn critic
-        critics = [self.extrinsic_critics[i], self.intrinsic_critics[i]]
-        critic_optims = [
-            self.extrinsic_critic_optimizers[i],
-            self.intrinsic_critic_optimizers[i],
-        ]
-        critic_targets = [extrinsic_returns, intrinsic_returns]
-        critic_iteration = 5
-        extrinsic_critic_loss = None
-        intrinsic_critic_loss = None
+        # === Prepare for critic learning === #
         batch_size = states.shape[0]
-        for critic, optim, returns in zip(critics, critic_optims, critic_targets):
-            losses = []
-            perm = torch.randperm(batch_size)
-            mb_size = batch_size // critic_iteration
-            for j in range(critic_iteration):
-                indices = perm[j * mb_size : (j + 1) * mb_size]
-                critic_loss = self.critic_loss(
-                    critic, states[indices], returns[indices]
-                )
-                optim.zero_grad()
-                critic_loss.backward()
-                nn.utils.clip_grad_norm_(critic.parameters(), max_norm=0.5)
-                optim.step()
-                losses.append(critic_loss.item())
+        critic_iteration = 5
+        mb_size = batch_size // critic_iteration
+        perm = torch.randperm(batch_size)
 
-            avg_loss = sum(losses) / len(losses)
-            if extrinsic_critic_loss is None:
-                extrinsic_critic_loss = avg_loss
-            else:
-                intrinsic_critic_loss = avg_loss
+        # === Learn extrinsic critic === #
+        extrinsic_critic = self.extrinsic_critics[i]
+        extrinsic_optim = self.extrinsic_critic_optimizers[i]
 
-        # 2. Learn actor
-        actor_clone = deepcopy(actor)  # self.clone_actor()  # clone for future update
+        extrinsic_losses = []
+        for j in range(critic_iteration):
+            indices = perm[j * mb_size : (j + 1) * mb_size]
+            critic_loss = self.critic_loss(
+                extrinsic_critic, states[indices], extrinsic_returns[indices]
+            )
+            extrinsic_optim.zero_grad()
+            critic_loss.backward()
+            nn.utils.clip_grad_norm_(extrinsic_critic.parameters(), max_norm=0.5)
+            extrinsic_optim.step()
+            extrinsic_losses.append(critic_loss.item())
 
-        if prefix == "outer":  # and np.any(self.probability_history > 0.0):
-            advantages = extrinsic_advantages
-        else:
-            advantages = intrinsic_advantages
+        extrinsic_critic_loss = sum(extrinsic_losses) / len(extrinsic_losses)
 
-        # advantages = extrinsic_advantages if prefix == "outer" else intrinsic_advantages
+        # === Learn intrinsic critic === #
+        intrinsic_critic = self.intrinsic_critics[i]
+        intrinsic_optim = self.intrinsic_critic_optimizers[i]
+
+        intrinsic_losses = []
+        for j in range(critic_iteration):
+            indices = perm[j * mb_size : (j + 1) * mb_size]
+            critic_loss = self.critic_loss(
+                intrinsic_critic, states[indices], intrinsic_returns[indices]
+            )
+            intrinsic_optim.zero_grad()
+            critic_loss.backward()
+            nn.utils.clip_grad_norm_(intrinsic_critic.parameters(), max_norm=0.5)
+            intrinsic_optim.step()
+            intrinsic_losses.append(critic_loss.item())
+
+        intrinsic_critic_loss = sum(intrinsic_losses) / len(intrinsic_losses)
+
+        # === Learn exploratory policy === #
+        actor_clone = deepcopy(actor)
+        advantages = extrinsic_advantages if prefix == "outer" else intrinsic_advantages
         normalized_advantages = (advantages - advantages.mean()) / (
             advantages.std() + 1e-8
         )
 
-        # 3. actor Loss
         actor_loss, entropy_loss = self.actor_loss(
-            actor, states, actions, old_logprobs, normalized_advantages
+            actor, states, actions, normalized_advantages
         )
 
         if prefix == "outer":
@@ -424,23 +373,24 @@ class IGTPO_Learner(Base):
             loss = actor_loss - entropy_loss
         else:
             # do not include the entropy loss in the inner-level policy update
+            # this is because intrinsic reward is already abundant
             loss = actor_loss
 
-        # 5. Compute gradients (example)
+        # Compute gradients
         gradients = torch.autograd.grad(loss, actor.parameters(), create_graph=True)
         gradients = self.clip_grad_norm(gradients, max_norm=0.5)
 
-        # 6. Manual SGD update (structured, not flat)
+        # Manual SGD update (structured, not flat)
         with torch.no_grad():
             for p, g in zip(actor_clone.parameters(), gradients):
                 p -= self.inner_actor_lr * g
 
-        # 8. Logging
+        # Logging
         actor_grad_norm = torch.sqrt(
             sum(g.pow(2).sum() for g in gradients if g is not None)
         )
 
-        # 9. do update of intrinsic reward if necessary
+        # Update of intrinsic reward if necessary (DRND only)
         self.intrinsic_reward_fn.learn(states, next_states, i, source)
 
         loss_dict = {
@@ -530,47 +480,17 @@ class IGTPO_Learner(Base):
 
             return 0, True
 
-    def clone_actor(self, actor: nn.Module):
-        """
-        Safe cloning of actor model for multiprocessing (CUDA-safe if run before CUDA init):
-        - Avoids in-place .to("cpu") on original model.
-        - Does not require original model to move off-device.
-        """
-        # Create a new clone on CPU
-        actor_clone = PPO_Actor(
-            input_dim=actor.state_dim,
-            hidden_dim=actor.hidden_dim,
-            action_dim=actor.action_dim,
-            is_discrete=actor.is_discrete,
-            activation=nn.Tanh(),
-            device=torch.device("cpu"),  # <- important
-        )
-        # Copy weights from actor (which may be on GPU)
-        actor_clone.load_state_dict({k: v.cpu() for k, v in actor.state_dict().items()})
-        actor_clone.device = self.device
-
-        # Move clone to target device (if needed)
-        return actor_clone.to(self.device)
-
     def actor_loss(
         self,
         actor: nn.Module,
         states: torch.Tensor,
         actions: torch.Tensor,
-        old_logprobs: torch.Tensor,
         advantages: torch.Tensor,
     ):
-        # === PPO UPDATE STYLE === #
-        # off-policy correction term should be 1
         _, metaData = actor(states)
         logprobs = actor.log_prob(metaData["dist"], actions)
         entropy = actor.entropy(metaData["dist"])
-        ratios = torch.exp(logprobs - old_logprobs)
 
-        surr1 = ratios * advantages
-        surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
-
-        actor_loss = -torch.min(surr1, surr2).mean()
         actor_loss = -(logprobs * advantages).mean()
         entropy_loss = self.entropy_scaler * entropy.mean()
 

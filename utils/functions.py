@@ -2,63 +2,34 @@ import os
 import random
 
 import gymnasium as gym
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image
 from torch.utils.tensorboard import SummaryWriter
 
 import gymnasium_robotics
 from log.wandb_logger import WandbLogger
-from utils.wrapper import FetchWrapper, GridWrapper, ObsNormWrapper, PointMazeWrapper
+from utils.wrapper import FetchWrapper, GridWrapper, PointMazeWrapper
 
 EPI_LENGTH = {
     "fourrooms-v0": 100,
-    "ninerooms-v0": 300,
     "maze-v0": 200,
     "maze-v1": 200,
-    "maze-v2": 200,
     "ant-v5": 1000,
     "walker-v5": 1000,
-    "humanoidstandup-v5": 1000,
+    "hopper-v5": 1000,
     "pointmaze-v0": 500,
     "pointmaze-v1": 500,
-    "pointmaze-v2": 1000,
-    "pointmaze-v3": 1000,
-    "antmaze-v0": 1000,
-    "antmaze-v1": 1000,
     "fetchreach-v0": 50,
-    "fetchpush-v0": 100,
-    "fetch-reachdense": 50,
 }
 
 
-def temp_seed(seed, pid):
-    """
-    This saves current seed info and calls after stochastic action selection.
-    -------------------------------------------------------------------------
-    This is to introduce the stochacity in each multiprocessor.
-    Without this, the samples from each multiprocessor will be same since the seed was fixed
-    """
-    rand_int = random.randint(0, 1_000_000)  # create a random integer
-
-    # Set the temporary seed
-    torch.manual_seed(seed + pid + rand_int)
-    np.random.seed(seed + pid + rand_int)
-    random.seed(seed + pid + rand_int)
-
-
-def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
+def call_env(args, random_spawn: bool = False):
     """
     Call the environment based on the given name.
     """
 
-    if episode_len is not None:
-        max_steps = episode_len
-    else:
-        max_steps = EPI_LENGTH[args.env_name]
-
+    max_steps = EPI_LENGTH[args.env_name]
     args.episode_len = max_steps
 
     env_name, version = args.env_name.split("-")
@@ -69,41 +40,19 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
         if env_name == "fourrooms":
             from gridworld.envs.fourrooms import FourRooms
 
-            env = FourRooms(
-                grid_type=version,
-                max_steps=max_steps,
-                num_random_agent=args.num_random_agents,
-            )
+            env = FourRooms(grid_type=version, max_steps=max_steps)
 
         elif env_name == "maze":
             from gridworld.envs.maze import Maze
 
-            env = Maze(
-                grid_type=version,
-                max_steps=max_steps,
-                num_random_agent=args.num_random_agents,
-            )
-        elif env_name == "ninerooms":
-            from gridworld.envs.ninerooms import NineRooms
-
-            env = NineRooms(
-                grid_type=version,
-                max_steps=max_steps,
-                num_random_agent=args.num_random_agents,
-            )
-        else:
-            raise ValueError(f"Environment {env_name} is not supported.")
+            env = Maze(grid_type=version, max_steps=max_steps)
 
         env = GridWrapper(env)
 
-        args.state_dim = env.observation_space.shape
         args.positional_indices = [0, 1]
+        args.state_dim = env.observation_space.shape[0]
         args.action_dim = env.action_space.n
         args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
-    elif env_name == "ctf":
-        from gridworld.envs.ctf import CtF
-
-        env = CtF(grid_type=version, max_steps=max_steps)
     elif env_name == "ant":
         env = gym.make("Ant-v5", max_episode_steps=max_steps, render_mode="rgb_array")
         env.max_steps = max_steps
@@ -122,61 +71,17 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
         args.positional_indices = range(0, 17)
         args.action_dim = env.action_space.shape[0]
         args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
-    elif env_name == "humanoidstandup":
-        env = gym.make(
-            "HumanoidStandup-v5", max_episode_steps=max_steps, render_mode="rgb_array"
-        )
-        env.max_steps = max_steps
-        args.state_dim = env.observation_space.shape
-        args.positional_indices = range(0, 348)
-        args.action_dim = env.action_space.shape[0]
-        args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
-
-    elif env_name.startswith("fetch"):
+    elif env_name == "fetchreach":
 
         gym.register_envs(gymnasium_robotics)
 
-        if env_name == "fetchreach":
-            env = gym.make(
-                "FetchReach-v4",
-                max_episode_steps=max_steps,
-                render_mode="rgb_array",
-            )
-        elif env_name == "fetchreachdense":
-            env = gym.make(
-                "FetchReachDense-v4",
-                max_episode_steps=max_steps,
-                render_mode="rgb_array",
-            )
-        elif env_name == "fetchpush":
-            env = gym.make(
-                "FetchPush-v4",
-                max_episode_steps=max_steps,
-                render_mode="rgb_array",
-            )
-        elif env_name == "fetchpushdense":
-            env = gym.make(
-                "FetchPushDense-v4",
-                max_episode_steps=max_steps,
-                render_mode="rgb_array",
-            )
-        elif env_name == "fetchpickandplace":
-            env = gym.make(
-                "FetchPickAndPlace-v4",
-                max_episode_steps=max_steps,
-                render_mode="rgb_array",
-            )
-        elif env_name == "fetchpickandplacedense":
-            env = gym.make(
-                "FetchPickAndPlaceDense-v4",
-                max_episode_steps=max_steps,
-                render_mode="rgb_array",
-            )
-        else:
-            NotImplementedError(f"Version {version} is not implemented.")
+        env = gym.make(
+            "FetchReach-v4",
+            max_episode_steps=max_steps,
+            render_mode="rgb_array",
+        )
 
         env = FetchWrapper(env, max_steps, args.seed)
-        # env = ObsNormWrapper(env)
 
         args.positional_indices = [-6, -5, -4]
         args.state_dim = (
@@ -227,54 +132,6 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
                     [1, 1, 1, 1, 1, 1],
                 ]
                 continuing_task = False
-        elif version == 2:
-            if random_spawn:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, "c", "c", "c", "c", 1],
-                    [1, 1, 1, 1, "c", 1],
-                    [1, "c", "c", "c", "c", 1],
-                    [1, 1, 1, 1, 0, 1],
-                    [1, "c", "c", "c", "c", 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = True
-            else:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, "g", 0, 0, 0, 1],
-                    [1, 1, 1, 1, 0, 1],
-                    [1, 0, 0, 0, 0, 1],
-                    [1, 1, 1, 1, 0, 1],
-                    [1, "r", 0, 0, 0, 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = False
-        elif version == 3:
-            if random_spawn:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, "c", "c", 1, "c", 1],
-                    [1, "c", 1, 1, "c", 1],
-                    [1, "c", "c", "c", "c", 1],
-                    [1, "c", 1, 1, "c", 1],
-                    [1, "c", 1, "r", "c", 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = True
-            else:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, 0, "g", 1, 0, 1],
-                    [1, 0, 1, 1, 0, 1],
-                    [1, 0, 0, 0, 0, 1],
-                    [1, 0, 1, 1, 0, 1],
-                    [1, 0, 1, "r", 0, 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = False
-        else:
-            NotImplementedError(f"Version {version} is not implemented.")
 
         env = gym.make(
             "PointMaze_UMaze-v3",
@@ -285,69 +142,6 @@ def call_env(args, episode_len: int | None = None, random_spawn: bool = False):
         )
 
         env = PointMazeWrapper(env, example_map, max_steps, args.seed)
-        # env = ObsNormWrapper(env)
-
-        args.positional_indices = [-4, -3]
-        args.state_dim = (
-            env.observation_space["observation"].shape[0]
-            + env.observation_space["achieved_goal"].shape[0]
-            + env.observation_space["desired_goal"].shape[0],
-        )
-        args.action_dim = env.action_space.shape[0]
-        args.is_discrete = env.action_space.__class__.__name__ == "Discrete"
-    elif env_name == "antmaze":
-        gym.register_envs(gymnasium_robotics)
-        if version == 0:
-            if random_spawn:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, "c", "c", "c", "c", 1],
-                    [1, 1, 1, 1, "c", 1],
-                    [1, "c", "c", "c", "c", 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = True
-            else:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, "g", 0, 0, 0, 1],
-                    [1, 1, 1, 1, 0, 1],
-                    [1, "r", 0, 0, 0, 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = False
-        elif version == 1:
-            if random_spawn:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, "c", 1, 1, "c", 1],
-                    [1, "c", "c", "c", "c", 1],
-                    [1, "c", 1, 1, "c", 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = True
-            else:
-                example_map = [
-                    [1, 1, 1, 1, 1, 1],
-                    [1, 0, 1, 1, "g", 1],
-                    [1, 0, 0, 0, 0, 1],
-                    [1, "r", 1, 1, 0, 1],
-                    [1, 1, 1, 1, 1, 1],
-                ]
-                continuing_task = False
-        else:
-            NotImplementedError(f"Version {version} is not implemented.")
-
-        env = gym.make(
-            "AntMaze_UMazeDense-v5",
-            maze_map=example_map,
-            max_episode_steps=max_steps,
-            continuing_task=continuing_task,
-            render_mode="rgb_array",
-        )
-
-        env = PointMazeWrapper(env, example_map, max_steps, args.seed)
-        # env = ObsNormWrapper(env)
 
         args.positional_indices = [-4, -3]
         args.state_dim = (

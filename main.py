@@ -1,11 +1,9 @@
 import datetime
-import logging
 import os
 import random
 import uuid
 
 import torch
-import torch.nn as nn
 
 import wandb
 from utils.functions import (
@@ -37,18 +35,14 @@ def run(args, seed, unique_id, exp_time):
         from algorithms.trpo import TRPO_Algorithm
 
         algo = TRPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
-    elif args.algo_name == "ddpg":
-        from algorithms.ddpg import DDPG_Algorithm
-
-        algo = DDPG_Algorithm(env=env, logger=logger, writer=writer, args=args)
     elif args.algo_name == "psne":
         from algorithms.psne import PSNE_Algorithm
 
         algo = PSNE_Algorithm(env=env, logger=logger, writer=writer, args=args)
-    elif args.algo_name == "igtpo":
-        from algorithms.igtpo import IGTPO_Algorithm
+    elif args.algo_name == "irpo":
+        from algorithms.irpo import IRPO_Algorithm
 
-        algo = IGTPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
+        algo = IRPO_Algorithm(env=env, logger=logger, writer=writer, args=args)
     elif args.algo_name == "drndppo":
         from algorithms.drndppo import DRND_PPO_Algorithm
 

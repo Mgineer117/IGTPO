@@ -6,7 +6,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from policy.uniform_random import UniformRandom
 from utils.functions import call_env
 from utils.sampler import OnlineSampler
 
@@ -16,12 +15,9 @@ class IntrinsicRewardFunctions(nn.Module):
         super(IntrinsicRewardFunctions, self).__init__()
 
         # === Parameter saving === #
-        self.episode_len_for_sampling = args.episode_len  # 200_000
         self.num_trials = 2_000
 
-        self.extractor_env = call_env(
-            deepcopy(args), self.episode_len_for_sampling, random_spawn=True
-        )
+        self.extractor_env = call_env(deepcopy(args), random_spawn=True)
         self.logger = logger
         self.writer = writer
         self.args = args
@@ -35,7 +31,6 @@ class IntrinsicRewardFunctions(nn.Module):
             self.extractor_mode = "allo"
             self.define_extractor()
             self.define_eigenvectors()
-            # self.define_intrinsic_reward_normalizer()
 
             self.sources = ["allo" for _ in range(self.num_rewards)]
         elif self.args.intrinsic_reward_mode == "drnd":
@@ -51,7 +46,6 @@ class IntrinsicRewardFunctions(nn.Module):
 
             self.define_extractor()
             self.define_eigenvectors()
-            # self.define_intrinsic_reward_normalizer()
             self.define_drnd_policy()
 
             self.sources = ["allo" for _ in range(self.args.num_options)]
@@ -59,25 +53,6 @@ class IntrinsicRewardFunctions(nn.Module):
         else:
             raise NotImplementedError(
                 f"The intrinsic reward mode {self.args.intrinsic_reward_mode} not implemented or unknown."
-            )
-
-    def prune(self, i: int):
-        if self.num_rewards > 1:
-            source = self.sources[i]
-
-            # === REMOVE EIGENVECTORS & NORMALIZER === #
-            if source == "allo":
-                del self.eigenvectors[i]
-                del self.sources[i]
-                if hasattr(self, "reward_rms"):
-                    del self.reward_rms[i]
-            elif source == "drnd":
-                del self.sources[i]
-
-            self.num_rewards = len(self.sources)
-        else:
-            print(
-                f"Nothing to prune. Current number of intrinsic rewards: {self.num_rewards}"
             )
 
     def forward(self, states: torch.Tensor, next_states: torch.Tensor, i: int):
@@ -98,17 +73,6 @@ class IntrinsicRewardFunctions(nn.Module):
             with torch.no_grad():
                 intrinsic_rewards = self.drnd_policy.intrinsic_reward(next_states)
 
-        # === INTRINSIC REWARD NORMALIZATION === #
-        if hasattr(self, "reward_rms") and self.sources[i] != "drnd":
-            # drnd has its own normalizer in itself
-            self.reward_rms[i].update(intrinsic_rewards.cpu().numpy())
-            var_tensor = torch.as_tensor(
-                self.reward_rms[i].var,
-                device=intrinsic_rewards.device,
-                dtype=intrinsic_rewards.dtype,
-            )
-            intrinsic_rewards = intrinsic_rewards / (torch.sqrt(var_tensor) + 1e-8)
-
         return intrinsic_rewards, self.sources[i]
 
     def learn(
@@ -116,7 +80,7 @@ class IntrinsicRewardFunctions(nn.Module):
     ):
         if keyword == "drnd":
             batch_size = states.shape[0]
-            iteration = 10
+            iteration = 5
             losses = []
             perm = torch.randperm(batch_size)
             mb_size = batch_size // iteration
@@ -149,15 +113,10 @@ class IntrinsicRewardFunctions(nn.Module):
         if not os.path.exists(f"model/{self.args.env_name}"):
             os.makedirs(f"model/{self.args.env_name}")
 
-        # env_name, version = self.args.env_name.split("-")
-        # Directory path based on env_name
-
         # === CREATE FEATURE EXTRACTOR === #
         feature_network = NeuralNet(
-            state_dim=len(
-                self.args.positional_indices
-            ),  # discrete position is always 2d
-            feature_dim=self.args.feature_dim,  # (8 // 2 + 1),
+            state_dim=len(self.args.positional_indices),
+            feature_dim=self.args.feature_dim,
             encoder_fc_dim=[512, 512, 512, 512],
             activation=nn.LeakyReLU(),
         )
@@ -170,7 +129,7 @@ class IntrinsicRewardFunctions(nn.Module):
             epochs=self.args.extractor_epochs,
             batch_size=1024,
             lr_barrier_coeff=self.args.lr_barrier_coeff,  # ALLO uses 0.01 lr_barrier_coeff
-            discount=self.args.allo_discount_factor,  # ALLO uses 0.99 discount
+            discount=self.args.discount_sampling_factor,  # ALLO uses 0.99 discount
             device=self.args.device,
         )
 
@@ -185,7 +144,7 @@ class IntrinsicRewardFunctions(nn.Module):
             epochs = 0
             model_path = os.path.join(
                 model_dir,
-                f"ALLO_{self.args.extractor_epochs}_{self.args.allo_discount_factor}.pth",
+                f"ALLO_{self.args.extractor_epochs}_{self.args.discount_sampling_factor}.pth",
             )
         else:
             print(f"[INFO] Found {len(pth_files)} .pth files in {model_dir}")
@@ -211,20 +170,20 @@ class IntrinsicRewardFunctions(nn.Module):
                     print(f"[WARNING] Failed to parse file: {filename}")
                     continue
 
-            if self.args.allo_discount_factor not in discount_factors:
+            if self.args.discount_sampling_factor not in discount_factors:
                 print(
-                    f"[INFO] No model with discount factor {self.args.allo_discount_factor} found. Starting fresh."
+                    f"[INFO] No model with discount factor {self.args.discount_sampling_factor} found. Starting fresh."
                 )
                 epochs = 0
                 model_path = os.path.join(
                     model_dir,
-                    f"ALLO_{self.args.extractor_epochs}_{self.args.allo_discount_factor}.pth",
+                    f"ALLO_{self.args.extractor_epochs}_{self.args.discount_sampling_factor}.pth",
                 )
             else:
                 matching = [
                     (e, f, filename)
                     for e, f, filename in zip(epochs, discount_factors, valid_files)
-                    if f == self.args.allo_discount_factor
+                    if f == self.args.discount_sampling_factor
                 ]
 
                 max_epoch, _, _ = max(matching, key=lambda x: x[0])
@@ -232,7 +191,7 @@ class IntrinsicRewardFunctions(nn.Module):
                 filename = matching[idx][-1]
                 model_path = os.path.join(model_dir, filename)
                 print(
-                    f"[INFO] Loading model from: {model_path} (epoch {max_epoch}, discount {self.args.allo_discount_factor})"
+                    f"[INFO] Loading model from: {model_path} (epoch {max_epoch}, discount {self.args.discount_sampling_factor})"
                 )
 
                 extractor.load_state_dict(
@@ -251,8 +210,8 @@ class IntrinsicRewardFunctions(nn.Module):
             sampler = OnlineSampler(
                 state_dim=self.args.state_dim,
                 action_dim=self.args.action_dim,
-                episode_len=self.episode_len_for_sampling,
-                batch_size=self.num_trials * self.episode_len_for_sampling,
+                episode_len=self.args.episode_len,
+                batch_size=self.num_trials * self.args.episode_len,
                 verbose=False,
             )
             trainer = ExtractorTrainer(
@@ -285,14 +244,6 @@ class IntrinsicRewardFunctions(nn.Module):
         self.logger.write_images(
             step=self.current_timesteps, images=heatmaps, logdir="Image/Heatmaps"
         )
-
-    def define_intrinsic_reward_normalizer(self):
-        from utils.wrapper import RunningMeanStd
-
-        self.reward_rms = []
-        # DRND method has its own rms its own class
-        for _ in range(self.args.num_options):
-            self.reward_rms.append(RunningMeanStd(shape=(1,)))
 
     def define_drnd_policy(self):
         from policy.drndppo import DRNDPPO_Learner

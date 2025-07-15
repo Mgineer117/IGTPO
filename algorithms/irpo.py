@@ -5,16 +5,16 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from policy.igtpo import IGTPO_Learner
+from policy.irpo import IRPO_Learner
 from policy.layers.ppo_networks import PPO_Actor, PPO_Critic
-from trainer.igtpo_trainer import IGTPOTrainer
+from trainer.irpo_trainer import IRPOTrainer
 from utils.intrinsic_rewards import IntrinsicRewardFunctions
 from utils.sampler import OnlineSampler
 
 
-class IGTPO_Algorithm(nn.Module):
+class IRPO_Algorithm(nn.Module):
     def __init__(self, env, logger, writer, args):
-        super(IGTPO_Algorithm, self).__init__()
+        super(IRPO_Algorithm, self).__init__()
 
         # === Parameter saving === #
         self.env = env
@@ -28,34 +28,23 @@ class IGTPO_Algorithm(nn.Module):
             args=args,
         )
 
-        self.args.igtpo_nupdates = args.timesteps // (
-            args.batch_size * args.num_inner_updates * args.num_options
-        )
-
         self.current_timesteps = self.intrinsic_reward_fn.current_timesteps
 
     def begin_training(self):
         # === Sampler === #
-        outer_sampler = OnlineSampler(
+        sampler = OnlineSampler(
             state_dim=self.args.state_dim,
             action_dim=self.args.action_dim,
             episode_len=self.env.max_steps,
             batch_size=self.args.batch_size,
         )
-        inner_sampler = OnlineSampler(
-            state_dim=self.args.state_dim,
-            action_dim=self.args.action_dim,
-            episode_len=self.env.max_steps,
-            batch_size=self.args.batch_size,  # // 4,
-            verbose=False,
-        )
+
         # === Meta-train using options === #'
         self.define_outer_policy()
-        trainer = IGTPOTrainer(
+        trainer = IRPOTrainer(
             env=self.env,
             policy=self.policy,
-            outer_sampler=outer_sampler,
-            inner_sampler=inner_sampler,
+            sampler=sampler,
             logger=self.logger,
             writer=self.writer,
             init_timesteps=self.current_timesteps,
@@ -80,19 +69,17 @@ class IGTPO_Algorithm(nn.Module):
         )
         critic = PPO_Critic(self.args.state_dim, hidden_dim=self.args.critic_fc_dim)
 
-        self.policy = IGTPO_Learner(
+        self.policy = IRPO_Learner(
             actor=actor,
             critic=critic,
             is_discrete=self.args.is_discrete,
             intrinsic_reward_fn=self.intrinsic_reward_fn,
-            nupdates=self.args.igtpo_nupdates,
             num_inner_updates=self.args.num_inner_updates,
             outer_level_update_mode=self.args.outer_level_update_mode,
             outer_actor_lr=self.args.outer_actor_lr,
             inner_actor_lr=self.args.inner_actor_lr,
             critic_lr=self.args.critic_lr,
             weight_option=self.args.weight_option,
-            eps_clip=self.args.eps_clip,
             entropy_scaler=self.args.entropy_scaler,
             target_kl=self.args.target_kl,
             gamma=self.args.gamma,

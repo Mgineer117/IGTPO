@@ -1,13 +1,8 @@
-from io import BytesIO
-
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
 from matplotlib import cm
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-from PIL import Image
 
 
 class RunningMeanStd:
@@ -37,59 +32,6 @@ class RunningMeanStd:
         self.mean = new_mean
         self.var = new_var
         self.count = tot_count
-
-
-class ObsNormWrapper(gym.ObservationWrapper):
-    def __init__(self, env, clip_obs=10.0, epsilon=1e-8):
-        super().__init__(env)
-        self.clip_obs = clip_obs
-        self.epsilon = epsilon
-        obs_shape = self.observation_space.shape
-        self.rms = RunningMeanStd(shape=obs_shape)
-
-    def observation(self, obs):
-        self.rms.update(obs[np.newaxis, ...])
-        norm_obs = (obs - self.rms.mean) / (np.sqrt(self.rms.var) + self.epsilon)
-        return np.clip(norm_obs, -self.clip_obs, self.clip_obs)
-
-    def __getattr__(self, name):
-        # Forward any unknown attribute to the inner environment
-        return getattr(self.env, name)
-
-
-class CTFWrapper(gym.Wrapper):
-    def __init__(self, env: gym.Env):
-        super(CTFWrapper, self).__init__(env)
-
-    def reset(self, **kwargs):
-        observation_dict, info = self.env.reset(**kwargs)
-        info.update(observation_dict)
-
-        observation = np.concatenate(
-            (
-                observation_dict["achieved_goal"],
-                observation_dict["desired_goal"],
-            )
-        )
-
-        return observation, info
-
-    def step(self, action):
-        # Call the original step method
-        observation_dict, reward, termination, truncation, info = self.env.step(action)
-        info.update(observation_dict)
-
-        observation = np.concatenate(
-            (
-                observation_dict["achieved_goal"],
-                observation_dict["desired_goal"],
-            )
-        )
-        return observation, reward, termination, truncation, info
-
-    def __getattr__(self, name):
-        # Forward any unknown attribute to the inner environment
-        return getattr(self.env, name)
 
 
 class GridWrapper(gym.Wrapper):

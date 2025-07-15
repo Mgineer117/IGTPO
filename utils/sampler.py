@@ -9,8 +9,6 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 
-from utils.functions import temp_seed
-
 today = date.today()
 
 
