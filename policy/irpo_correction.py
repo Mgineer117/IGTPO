@@ -278,7 +278,6 @@ class IRPO_Learner(Base):
                 gamma=self.gamma,
                 gae=self.gae,
             )
-        with torch.no_grad():
             intrinsic_values = self.intrinsic_critics[i](states)
             intrinsic_advantages, intrinsic_returns = estimate_advantages(
                 intrinsic_rewards,

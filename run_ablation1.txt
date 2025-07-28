@@ -1,9 +1,0 @@
-nohup python3 main.py --env-name fourrooms-v0 --project ablation --algo-name igtpo --intrinsic-reward-mode allo --outer-level-update-mode trpo --num-inner-updates 2 --gpu-idx 0 & 
-nohup python3 main.py --env-name fourrooms-v0 --project ablation --algo-name igtpo --intrinsic-reward-mode allo --outer-level-update-mode trpo --num-inner-updates 5 --weight-option softmax --gpu-idx 0 & 
-nohup python3 main.py --env-name fourrooms-v0 --project ablation --algo-name igtpo --intrinsic-reward-mode allo --outer-level-update-mode trpo --num-inner-updates 5 --weight-option argmax --gpu-idx 0 &  
-nohup python3 main.py --env-name fourrooms-v0 --project ablation --algo-name igtpo --intrinsic-reward-mode allo --outer-level-update-mode trpo --num-inner-updates 10 --gpu-idx 0 & 
-
-nohup python3 main.py --env-name fourrooms-v0 --project ablation --algo-name igtpo --intrinsic-reward-mode allo --outer-level-update-mode sgd --outer-actor-lr 0.0001 --gpu-idx 1 & 
-nohup python3 main.py --env-name fourrooms-v0 --project ablation --algo-name igtpo --intrinsic-reward-mode allo --outer-level-update-mode sgd --outer-actor-lr 0.001 --gpu-idx 1 & 
-nohup python3 main.py --env-name fourrooms-v0 --project ablation --algo-name igtpo --intrinsic-reward-mode allo --outer-level-update-mode sgd --outer-actor-lr 0.01 --gpu-idx 1 & 
-nohup python3 main.py --env-name fourrooms-v0 --project ablation --algo-name igtpo --intrinsic-reward-mode allo --outer-level-update-mode sgd --outer-actor-lr 0.1 --gpu-idx 1 & 

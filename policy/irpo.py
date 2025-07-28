@@ -295,7 +295,6 @@ class IRPO_Learner(Base):
         states = self.preprocess_state(batch["states"])
         next_states = self.preprocess_state(batch["next_states"])
         actions = self.preprocess_state(batch["actions"])
-        old_logprobs = self.preprocess_state(batch["logprobs"])
         extrinsic_rewards = self.preprocess_state(batch["rewards"])
         intrinsic_rewards, source = self.intrinsic_reward_fn(states, next_states, i)
         terminals = self.preprocess_state(batch["terminals"])
@@ -310,24 +309,14 @@ class IRPO_Learner(Base):
                 gamma=self.gamma,
                 gae=self.gae,
             )
-        with torch.no_grad():
             intrinsic_values = self.intrinsic_critics[i](states)
-            if source == "drnd":
-                intrinsic_advantages, intrinsic_returns = estimate_advantages(
-                    intrinsic_rewards,
-                    torch.zeros_like(terminals),
-                    intrinsic_values,
-                    gamma=self.gamma,
-                    gae=self.gae,
-                )
-            else:
-                intrinsic_advantages, intrinsic_returns = estimate_advantages(
-                    intrinsic_rewards,
-                    terminals,
-                    intrinsic_values,
-                    gamma=1.0,
-                    gae=self.gae,
-                )
+            intrinsic_advantages, intrinsic_returns = estimate_advantages(
+                intrinsic_rewards,
+                terminals,
+                intrinsic_values,
+                gamma=self.gamma,
+                gae=self.gae,
+            )
 
         # === Prepare for critic learning === #
         batch_size = states.shape[0]
@@ -335,52 +324,46 @@ class IRPO_Learner(Base):
         mb_size = batch_size // critic_iteration
         perm = torch.randperm(batch_size)
 
-        # === Learn extrinsic critic === #
+        # === Learn extrinsic and intrinsic critic === #
         extrinsic_critic = self.extrinsic_critics[i]
         extrinsic_optim = self.extrinsic_critic_optimizers[i]
 
-        extrinsic_losses = []
-        for j in range(critic_iteration):
-            indices = perm[j * mb_size : (j + 1) * mb_size]
-            critic_loss = self.critic_loss(
-                extrinsic_critic, states[indices], extrinsic_returns[indices]
-            )
-            extrinsic_optim.zero_grad()
-            critic_loss.backward()
-            nn.utils.clip_grad_norm_(extrinsic_critic.parameters(), max_norm=0.5)
-            extrinsic_optim.step()
-            extrinsic_losses.append(critic_loss.item())
-
-        extrinsic_critic_loss = sum(extrinsic_losses) / len(extrinsic_losses)
-
-        # === Learn intrinsic critic === #
         intrinsic_critic = self.intrinsic_critics[i]
         intrinsic_optim = self.intrinsic_critic_optimizers[i]
 
+        extrinsic_losses = []
         intrinsic_losses = []
         for j in range(critic_iteration):
             indices = perm[j * mb_size : (j + 1) * mb_size]
-            critic_loss = self.critic_loss(
+
+            extrinsic_critic_loss = self.critic_loss(
+                extrinsic_critic, states[indices], extrinsic_returns[indices]
+            )
+            intrinsic_critic_loss = self.critic_loss(
                 intrinsic_critic, states[indices], intrinsic_returns[indices]
             )
+
+            extrinsic_optim.zero_grad()
+            extrinsic_critic_loss.backward()
+            nn.utils.clip_grad_norm_(extrinsic_critic.parameters(), max_norm=0.5)
+            extrinsic_optim.step()
+            extrinsic_losses.append(extrinsic_critic_loss.item())
+
             intrinsic_optim.zero_grad()
-            critic_loss.backward()
+            intrinsic_critic_loss.backward()
             nn.utils.clip_grad_norm_(intrinsic_critic.parameters(), max_norm=0.5)
             intrinsic_optim.step()
-            intrinsic_losses.append(critic_loss.item())
+            intrinsic_losses.append(intrinsic_critic_loss.item())
 
+        extrinsic_critic_loss = sum(extrinsic_losses) / len(extrinsic_losses)
         intrinsic_critic_loss = sum(intrinsic_losses) / len(intrinsic_losses)
 
         # === Learn exploratory policy === #
         actor_clone = deepcopy(actor)
         advantages = extrinsic_advantages if prefix == "outer" else intrinsic_advantages
-        normalized_advantages = (advantages - advantages.mean()) / (
-            advantages.std() + 1e-8
-        )
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        actor_loss, entropy_loss = self.actor_loss(
-            actor, states, actions, old_logprobs, normalized_advantages
-        )
+        actor_loss, entropy_loss = self.actor_loss(actor, states, actions, advantages)
 
         if prefix == "outer":
             # include the entropy loss in the outer-level policy update
@@ -499,21 +482,14 @@ class IRPO_Learner(Base):
         actor: nn.Module,
         states: torch.Tensor,
         actions: torch.Tensor,
-        old_logprobs: torch.Tensor,
         advantages: torch.Tensor,
     ):
-        # === PPO UPDATE STYLE === #
-        # off-policy correction term should be 1
+        # === Naive policy gradient loss === #
         _, metaData = actor(states)
         logprobs = actor.log_prob(metaData["dist"], actions)
         entropy = actor.entropy(metaData["dist"])
-        ratios = torch.exp(logprobs - old_logprobs)
 
-        surr1 = ratios * advantages
-        surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
-
-        actor_loss = -torch.min(surr1, surr2).mean()
-        # actor_loss = -(logprobs * advantages).mean()
+        actor_loss = -(logprobs * advantages).mean()
         entropy_loss = self.entropy_scaler * entropy.mean()
 
         return actor_loss, entropy_loss
@@ -522,7 +498,9 @@ class IRPO_Learner(Base):
         self, critic: nn.Module, states: torch.Tensor, returns: torch.Tensor
     ):
         values = critic(states)
-        value_loss = self.huber_loss(values, returns)
+        # MSE loss for critic is important as we want to emphasize the outliers
+        # where the outliers are rarely achieved reward in sparse-reward environments
+        value_loss = self.mse_loss(values, returns)
 
         l2_loss = sum(param.pow(2).sum() for param in critic.parameters()) * self.l2_reg
 

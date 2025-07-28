@@ -1,8 +1,0 @@
-nohup python3 main.py --algo-name igtpo --env-name pointmaze-v0 --project allo --allo-discount-factor 0.99 &
-sleep 120
-nohup python3 main.py --algo-name igtpo --env-name maze-v0 --project allo --allo-discount-factor 0.9 &
-sleep 120
-nohup python3 main.py --algo-name igtpo --env-name fourrooms-v0 --project allo --allo-discount-factor 0.9 &
-sleep 120
-nohup python3 main.py --algo-name igtpo --env-name ninerooms-v0 --project allo --allo-discount-factor 0.9 &
-
