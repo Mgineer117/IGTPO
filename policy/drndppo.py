@@ -350,8 +350,8 @@ class DRNDPPO_Learner(Base):
         mb_ext_values = self.critic(mb_states)
         mb_int_values = self.drnd_critic(mb_states)
 
-        ext_value_loss = self.huber_loss(mb_ext_values, mb_ext_returns)
-        int_value_loss = self.huber_loss(mb_int_values, mb_int_returns)
+        ext_value_loss = self.mse_loss(mb_ext_values, mb_ext_returns)
+        int_value_loss = self.mse_loss(mb_int_values, mb_int_returns)
 
         value_loss = ext_value_loss + int_value_loss
 
@@ -377,7 +377,7 @@ class DRNDPPO_Learner(Base):
             target = target_next_state_feature[
                 idx, torch.arange(predict_next_state_feature.shape[0]), :
             ]
-        forward_loss = F.huber_loss(predict_next_state_feature, target)
+        forward_loss = self.mse_loss(predict_next_state_feature, target)
 
         # Proportion of exp used for predictor update
         mask = torch.rand(next_states.shape[0]).to(self.device)

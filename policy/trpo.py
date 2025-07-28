@@ -244,7 +244,7 @@ class TRPO_Learner(Base):
 
     def critic_loss(self, states: torch.Tensor, returns: torch.Tensor):
         mb_values = self.critic(states)
-        value_loss = self.huber_loss(mb_values, returns)
+        value_loss = self.mse_loss(mb_values, returns)
         l2_loss = (
             sum(param.pow(2).sum() for param in self.critic.parameters()) * self.l2_reg
         )

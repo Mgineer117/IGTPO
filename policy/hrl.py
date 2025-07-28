@@ -269,7 +269,7 @@ class HRL_Learner(Base):
 
     def critic_loss(self, mb_states: torch.Tensor, mb_returns: torch.Tensor):
         mb_values = self.critic(mb_states)
-        value_loss = self.huber_loss(mb_values, mb_returns)
+        value_loss = self.mse_loss(mb_values, mb_returns)
         l2_loss = (
             sum(param.pow(2).sum() for param in self.critic.parameters()) * self.l2_reg
         )
