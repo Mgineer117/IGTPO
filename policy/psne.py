@@ -254,8 +254,8 @@ class PSNE_Learner(Base):
         entropy = self.actor.entropy(metaData["dist"])
         ratios = torch.exp(logprobs - old_logprobs)
 
-        surr = ratios * advantages
-        actor_loss = -surr.mean()
+        # surrogate loss
+        actor_loss = -(ratios * advantages).mean()
         entropy_loss = self.entropy_scaler * entropy.mean()
 
         loss = actor_loss + entropy_loss

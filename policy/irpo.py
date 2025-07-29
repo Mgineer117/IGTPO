@@ -298,6 +298,7 @@ class IRPO_Learner(Base):
         extrinsic_rewards = self.preprocess_state(batch["rewards"])
         intrinsic_rewards, source = self.intrinsic_reward_fn(states, next_states, i)
         terminals = self.preprocess_state(batch["terminals"])
+        old_logprobs = self.preprocess_state(batch["logprobs"])
 
         # === Compute advantages and returns === #
         with torch.no_grad():
@@ -363,7 +364,9 @@ class IRPO_Learner(Base):
         advantages = extrinsic_advantages if prefix == "outer" else intrinsic_advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        actor_loss, entropy_loss = self.actor_loss(actor, states, actions, advantages)
+        actor_loss, entropy_loss = self.actor_loss(
+            actor, states, actions, old_logprobs, advantages
+        )
 
         if prefix == "outer":
             # include the entropy loss in the outer-level policy update
@@ -482,14 +485,18 @@ class IRPO_Learner(Base):
         actor: nn.Module,
         states: torch.Tensor,
         actions: torch.Tensor,
+        old_logprobs: torch.Tensor,
         advantages: torch.Tensor,
     ):
         # === Naive policy gradient loss === #
         _, metaData = actor(states)
         logprobs = actor.log_prob(metaData["dist"], actions)
         entropy = actor.entropy(metaData["dist"])
+        # the ratio should be just one as this is a one-batch update,
+        # but used here for numerical stability
+        ratios = torch.exp(logprobs - old_logprobs)
 
-        actor_loss = -(logprobs * advantages).mean()
+        actor_loss = -(ratios * advantages).mean()
         entropy_loss = self.entropy_scaler * entropy.mean()
 
         return actor_loss, entropy_loss
