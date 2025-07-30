@@ -111,6 +111,7 @@ class IRPO_Learner(Base):
         )
 
         # ensure the actor is in desireable dtype and device
+        self.wall_clock_time = 0
         self.to(self.dtype).to(self.device)
 
     def forward(self, state: np.ndarray, deterministic: bool = False):
@@ -253,10 +254,14 @@ class IRPO_Learner(Base):
             visitation_dict[name] = policy_dict[idx].state_visitation
 
         # === Make dictionary for logging === #
+        self.wall_clock_time += total_sample_time + total_update_time
         loss_dict = self.average_dict_values(loss_dict_list)
         loss_dict[f"{self.name}/analytics/avg_extrinsic_rewards"] = init_batch[
             "rewards"
         ].mean()
+        loss_dict[f"{self.name}/analytics/wall_clock_time (hr)"] = (
+            self.wall_clock_time / 3600.0
+        )
         loss_dict[f"{self.name}/analytics/sample_time"] = total_sample_time
         loss_dict[f"{self.name}/analytics/update_time"] = total_update_time
         loss_dict[f"{self.name}/parameters/num vectors"] = (

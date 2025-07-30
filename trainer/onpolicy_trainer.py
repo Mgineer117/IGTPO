@@ -60,6 +60,7 @@ class OnPolicyTrainer:
 
         # Train loop
         eval_idx = 0
+        wall_clock_time = 0
         with tqdm(
             total=self.timesteps + self.init_timesteps,
             initial=self.init_timesteps,
@@ -76,9 +77,13 @@ class OnPolicyTrainer:
 
                 # Calculate expected remaining time
                 pbar.update(timesteps)
+                wall_clock_time += sample_time + update_time
 
                 # Update environment steps and calculate time metrics
                 loss_dict[f"{self.policy.name}/analytics/timesteps"] = step + timesteps
+                loss_dict[f"{self.policy.name}/analytics/wall_clock_time (hr)"] = (
+                    wall_clock_time / 3600.0
+                )
                 loss_dict[f"{self.policy.name}/analytics/sample_time"] = sample_time
                 loss_dict[f"{self.policy.name}/analytics/update_time"] = update_time
 
